@@ -32,15 +32,113 @@ function handleUserInput() {
 }
 
 function getAIResponse(userInput) {
+    const input = userInput.toLowerCase().trim();
+    let response = '';
 
-    const responses = [
-        "C'est une excellente question. Pouvez-vous préciser ?",
-        "Très intéressant. Continuez.",
-        "D'accord, je comprends. Et alors ?",
-        "Oui, c'est une bonne façon de voir les choses.",
-        `Vous avez dit "${userInput}". Que voulez-vous dire par là ?`
-    ];
-    const response = responses[Math.floor(Math.random() * responses.length)];
+    // 问候语检测
+    if (input.match(/\b(bonjour|salut|bonsoir|coucou|hello|hi)\b/)) {
+        const greetings = [
+            "Bonjour ! Comment allez-vous aujourd'hui ?",
+            "Salut ! Je suis ravie de vous parler. Comment puis-je vous aider ?",
+            "Bonjour ! Prêt à pratiquer votre français ?",
+            "Salut ! Quelle belle journée pour apprendre le français !"
+        ];
+        response = greetings[Math.floor(Math.random() * greetings.length)];
+    }
+    // 提问检测（包含疑问词）
+    else if (input.match(/\b(comment|pourquoi|quand|où|qui|que|quel|quelle|est-ce que)\b/) || input.includes('?')) {
+        const questionResponses = [
+            `Excellente question sur "${userInput}". En français, on dit que...`,
+            `C'est une question intéressante ! Pour répondre, je dirais que...`,
+            `Ah, vous voulez savoir cela ? Laissez-moi vous expliquer...`,
+            `Bonne question ! La réponse dépend du contexte, mais généralement...`,
+            `Je comprends votre curiosité. En français, on utilise cette expression quand...`
+        ];
+        response = questionResponses[Math.floor(Math.random() * questionResponses.length)];
+    }
+    // 感谢检测
+    else if (input.match(/\b(merci|thanks|thank you|gracias)\b/)) {
+        const thankResponses = [
+            "De rien ! C'est un plaisir de vous aider.",
+            "Je vous en prie ! Continuez à pratiquer.",
+            "Avec plaisir ! N'hésitez pas si vous avez d'autres questions.",
+            "C'est avec plaisir ! Votre français s'améliore !"
+        ];
+        response = thankResponses[Math.floor(Math.random() * thankResponses.length)];
+    }
+    // 告别检测
+    else if (input.match(/\b(au revoir|bye|goodbye|à bientôt|à plus)\b/)) {
+        const farewells = [
+            "Au revoir ! À très bientôt !",
+            "Bonne journée ! Continuez à pratiquer !",
+            "À bientôt ! Bon courage avec votre français !",
+            "Au revoir ! Je serai là quand vous aurez besoin d'aide !"
+        ];
+        response = farewells[Math.floor(Math.random() * farewells.length)];
+    }
+    // 学习相关检测
+    else if (input.match(/\b(apprendre|étudier|pratiquer|exercice|leçon|cours)\b/)) {
+        const learningResponses = [
+            "Super ! L'apprentissage du français demande de la pratique régulière. Que voulez-vous étudier ?",
+            "Excellent esprit ! Je peux vous aider avec la grammaire, le vocabulaire ou la prononciation.",
+            "Très bien ! La clé est de pratiquer tous les jours. Par quoi voulez-vous commencer ?",
+            "Bravo pour votre motivation ! Explorez nos cours ou continuez à dialoguer avec moi."
+        ];
+        response = learningResponses[Math.floor(Math.random() * learningResponses.length)];
+    }
+    // 情感表达检测（积极）
+    else if (input.match(/\b(super|génial|excellent|parfait|bravo|bien|bon)\b/)) {
+        const positiveResponses = [
+            "Je suis contente que vous soyez enthousiaste ! Continuez comme ça !",
+            "Votre attitude positive est la clé du succès ! Qu'allons-nous faire maintenant ?",
+            "Magnifique ! Cette énergie vous aidera beaucoup dans votre apprentissage.",
+            "Oui, c'est l'esprit ! Gardez cette motivation !"
+        ];
+        response = positiveResponses[Math.floor(Math.random() * positiveResponses.length)];
+    }
+    // 困难/问题检测
+    else if (input.match(/\b(difficile|compliqué|problème|aide|comprends pas|help)\b/)) {
+        const helpResponses = [
+            "Ne vous inquiétez pas, c'est normal ! Dites-moi ce qui vous pose problème.",
+            "Je comprends que cela puisse être difficile. Prenons le temps d'expliquer étape par étape.",
+            "Pas de panique ! Ensemble, nous allons trouver une solution. Qu'est-ce qui vous bloque ?",
+            "C'est tout à fait normal de rencontrer des difficultés. Comment puis-je vous aider ?"
+        ];
+        response = helpResponses[Math.floor(Math.random() * helpResponses.length)];
+    }
+    // 数字和计数
+    else if (input.match(/\b(un|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|nombre|chiffre)\b/)) {
+        const numberResponses = [
+            "Les nombres en français ! Voulez-vous que je vous aide à compter ?",
+            "Ah, les chiffres ! C'est une partie importante du vocabulaire. Continuons !",
+            "Les nombres sont essentiels. Pratiquons-les ensemble !",
+            "Bien ! Maîtriser les nombres est très utile au quotidien."
+        ];
+        response = numberResponses[Math.floor(Math.random() * numberResponses.length)];
+    }
+    // 默认响应（更智能）
+    else {
+        // 检测输入长度，给出不同回应
+        if (input.length < 10) {
+            const shortResponses = [
+                `"${userInput}" - intéressant ! Pouvez-vous développer votre pensée ?`,
+                `D'accord. Voulez-vous en dire plus sur "${userInput}" ?`,
+                `Je vois. Continuez, je vous écoute.`,
+                `Mmm, "${userInput}". Expliquez-moi davantage, s'il vous plaît.`
+            ];
+            response = shortResponses[Math.floor(Math.random() * shortResponses.length)];
+        } else {
+            const defaultResponses = [
+                `Vous avez dit : "${userInput}". C'est très intéressant ! Que voulez-vous savoir de plus ?`,
+                `Je comprends votre point de vue. En français, on peut aussi dire...`,
+                `Merci de partager cela. Pour bien vous répondre, pouvez-vous préciser ?`,
+                `C'est une observation pertinente. Discutons-en plus en détail.`,
+                `Intéressant ! Votre français est bon. Continuez à pratiquer comme ça !`
+            ];
+            response = defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+        }
+    }
+
     renderChatMessage(response, 'ai');
     speak(response, 'fr-FR');
 }
