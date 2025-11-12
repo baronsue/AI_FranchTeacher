@@ -13,7 +13,7 @@ const routes = {
 };
 
 function initializeApp() {
-    const deployedProxy = 'https://franch-zcbfenbrec.cn-hangzhou-vpc.fcapp.run/qwen';
+    const deployedProxy = 'https://franch-zcbfenbrec.cn-hangzhou.fcapp.run/qwen';
     const isLocal =
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1' ||
