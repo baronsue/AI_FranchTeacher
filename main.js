@@ -39,23 +39,21 @@ function initializeApp() {
             if (result.success) {
                 const modelInfo = getQwenModelInfo();
                 console.log('Using Qwen Proxy:', modelInfo);
-                showNotification(result.message || '✓ 通义千问代理已就绪', 'success');
+                console.info(result.message || '✓ 通义千问代理已就绪');
                 setAIProvider(AI_PROVIDERS.QWEN);
             } else {
                 console.warn('Qwen proxy not ready:', result.error);
                 setAIProvider(AI_PROVIDERS.HUGGINGFACE);
-                showNotification(
-                    'AI 模式已启用，但未检测到通义千问代理。点击"配置 API"查看配置步骤，系统将临时使用免费的 HuggingFace API（响应较慢）。',
-                    'warning'
+                console.warn(
+                    'AI 模式已启用，但未检测到通义千问代理。系统将临时使用免费的 HuggingFace API（响应较慢）。'
                 );
             }
         })
         .catch((error) => {
             console.error('Failed to check Qwen proxy:', error);
             setAIProvider(AI_PROVIDERS.HUGGINGFACE);
-            showNotification(
-                '无法连接通义千问代理。请确保已启动 proxy 服务，或点击"配置 API"查看指南。',
-                'warning'
+            console.warn(
+                '无法连接通义千问代理。请确保已启动 proxy 服务，或点击"配置 API"查看指南。'
             );
         });
 

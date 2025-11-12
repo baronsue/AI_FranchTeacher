@@ -545,7 +545,7 @@ export function renderDialogueMode(container) {
                 <!-- 语音选择 -->
                 <div class="flex items-center justify-between gap-4">
                     <label class="text-sm font-medium text-gray-700 flex items-center gap-2">
-                        <i data-lucide="user-voice" class="w-4 h-4"></i>
+                        <i data-lucide="audio-lines" class="w-4 h-4"></i>
                         选择语音:
                     </label>
                     <select id="voice-selector" class="flex-grow max-w-xs text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">

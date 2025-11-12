@@ -139,9 +139,23 @@ function cleanResponse(text) {
     return cleaned;
 }
 
+function buildHealthUrl() {
+    try {
+        const url = new URL(proxyUrl);
+        if (!url.pathname.endsWith('/')) {
+            url.pathname += '/';
+        }
+        url.pathname += 'health';
+        return url.toString();
+    } catch (error) {
+        // proxyUrl 可能是相对地址，退回简单拼接
+        return proxyUrl.endsWith('/health') ? proxyUrl : `${proxyUrl.replace(/\/$/, '')}/health`;
+    }
+}
+
 export async function testQwenAPI() {
     try {
-        const healthUrl = proxyUrl.replace(/\/qwen$/, '/health');
+        const healthUrl = buildHealthUrl();
         const response = await fetch(healthUrl);
 
         if (!response.ok) {
