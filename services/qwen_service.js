@@ -142,14 +142,11 @@ function cleanResponse(text) {
 function buildHealthUrl() {
     try {
         const url = new URL(proxyUrl);
-        if (!url.pathname.endsWith('/')) {
-            url.pathname += '/';
-        }
-        url.pathname += 'health';
+        url.pathname = '/health';
         return url.toString();
     } catch (error) {
         // proxyUrl 可能是相对地址，退回简单拼接
-        return proxyUrl.endsWith('/health') ? proxyUrl : `${proxyUrl.replace(/\/$/, '')}/health`;
+        return `${window.location.origin}/health`;
     }
 }
 
