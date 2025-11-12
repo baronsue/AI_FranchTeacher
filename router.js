@@ -48,11 +48,11 @@ export async function navigateTo(view, container, routes = {}) {
         }
 
     } catch (error) {
-        console.error(`Erreur lors du chargement de la vue '${view}':`, error);
+        console.error(`加载视图 '${view}' 时出错:`, error);
         container.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow-md">
-            <h1 class="text-2xl font-bold text-red-600">Erreur de chargement</h1>
-            <p class="text-gray-600 mt-2">Désolé, une erreur est survenue lors du chargement de cette section.</p>
-            <p class="text-sm text-gray-400 mt-4">Détail: ${error.message}</p>
+            <h1 class="text-2xl font-bold text-red-600">加载错误</h1>
+            <p class="text-gray-600 mt-2">抱歉，加载此页面时发生错误。</p>
+            <p class="text-sm text-gray-400 mt-4">详情: ${error.message}</p>
         </div>`;
     }
 }

@@ -1,9 +1,14 @@
-import { speak } from '../services/speech_service.js';
+import { speak, getAvailableFrenchVoices } from '../services/speech_service.js';
 import { recognition } from '../services/speech_service.js';
+import { generateAIResponse, checkAPIAvailability, AI_PROVIDERS, setAIProvider } from '../services/ai_service.js';
+import { testQwenAPI, getQwenModelInfo } from '../services/qwen_service.js';
 
 let isRecognizing = false;
 let isSpeaking = false;
 let speechRate = 0.85; // 默认语速
+let selectedVoiceURI = null; // 用户选择的语音
+let useAI = true; // 是否使用 AI（可切换到规则模式）
+let aiConversationHistory = []; // AI 对话历史
 
 function renderChatMessage(message, sender, useTypingEffect = false) {
     const chatLog = document.getElementById('chat-log');
@@ -52,11 +57,23 @@ function handleUserInput() {
     if (message) {
         renderChatMessage(message, 'user');
         chatInput.value = '';
-        setTimeout(getAIResponse, 500, message);
+
+        // 保存用户消息到 AI 历史
+        aiConversationHistory.push({ role: 'user', content: message });
+
+        // 根据模式选择响应方式
+        if (useAI) {
+            // 使用 AI 模式（异步）
+            getAIResponseAsync(message);
+        } else {
+            // 使用规则模式（同步）
+            setTimeout(getRuleBasedResponse, 500, message);
+        }
     }
 }
 
-function getAIResponse(userInput) {
+// 重命名原有的规则函数
+function getRuleBasedResponse(userInput) {
     const input = userInput.toLowerCase().trim();
     let response = '';
 
@@ -184,6 +201,9 @@ function getAIResponse(userInput) {
         }
     }
 
+    // 保存 AI 回复到历史
+    aiConversationHistory.push({ role: 'assistant', content: response });
+
     // 使用打字效果渲染AI回复
     renderChatMessage(response, 'ai', true);
 
@@ -194,54 +214,94 @@ function getAIResponse(userInput) {
     }, Math.min(typingDuration * 0.3, 500)); // 在打字进行30%时开始播放，最多延迟500ms
 }
 
+// 使用 AI 生成回复（新增）
+async function getAIResponseAsync(userInput) {
+    try {
+        // 显示加载指示器
+        showTypingIndicator();
+
+        // 调用 AI 服务
+        const response = await generateAIResponse(aiConversationHistory, userInput);
+
+        // 移除加载指示器
+        removeTypingIndicator();
+
+        // 保存 AI 回复到历史
+        aiConversationHistory.push({ role: 'assistant', content: response });
+
+        // 渲染 AI 回复
+        renderChatMessage(response, 'ai', true);
+
+        // 延迟播放语音
+        const typingDuration = response.length * 30;
+        setTimeout(() => {
+            speakWithIndicator(response);
+        }, Math.min(typingDuration * 0.3, 500));
+
+    } catch (error) {
+        console.error('AI Response Error:', error);
+        removeTypingIndicator();
+
+        // 出错时回退到规则模式
+        getRuleBasedResponse(userInput);
+    }
+}
+
+// 显示 AI 思考中的指示器
+function showTypingIndicator() {
+    const chatLog = document.getElementById('chat-log');
+    const existing = document.getElementById('ai-typing-indicator');
+    if (existing) return;
+
+    const indicator = document.createElement('div');
+    indicator.id = 'ai-typing-indicator';
+    indicator.className = 'flex items-end gap-3 my-4 justify-start';
+    indicator.innerHTML = `
+        <img src="https://r2.flowith.net/files/png/Y6F4R-ai_french_teacher_avatar_index_1@1024x1024.png" class="w-10 h-10 rounded-full flex-shrink-0" alt="Aurélie">
+        <div class="bg-white text-gray-800 p-3 rounded-2xl shadow-sm">
+            <div class="flex gap-1 items-center">
+                <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                <div class="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                <span class="ml-2 text-xs text-gray-500">Aurélie réfléchit...</span>
+            </div>
+        </div>
+    `;
+    chatLog.appendChild(indicator);
+    chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+// 移除 AI 思考指示器
+function removeTypingIndicator() {
+    const indicator = document.getElementById('ai-typing-indicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
+
 // 带视觉指示器的语音播放函数
 function speakWithIndicator(text) {
-    const synth = window.speechSynthesis;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'fr-FR';
-    utterance.rate = speechRate;
-    utterance.pitch = 1.05;
-    utterance.volume = 1.0;
-
-    // 获取法语语音
-    const voices = synth.getVoices();
-    const frenchVoice = voices.find(voice =>
-        voice.lang.startsWith('fr') &&
-        (voice.name.includes('Google') || voice.name.includes('Microsoft')) &&
-        (voice.name.includes('Female') || voice.name.includes('femme'))
-    ) || voices.find(voice =>
-        voice.lang.startsWith('fr') &&
-        (voice.name.includes('Female') || voice.name.includes('femme'))
-    ) || voices.find(voice => voice.lang.startsWith('fr'));
-
-    if (frenchVoice) {
-        utterance.voice = frenchVoice;
-    }
-
-    // 显示语音播放指示器
     const indicator = document.getElementById('speech-indicator');
-    if (indicator) {
-        utterance.onstart = () => {
+
+    speak(text, {
+        lang: 'fr-FR',
+        rate: speechRate,
+        voiceURI: selectedVoiceURI,
+        onstart: () => {
             isSpeaking = true;
-            indicator.classList.remove('hidden');
-            indicator.classList.add('flex');
-        };
-
-        utterance.onend = () => {
+            if (indicator) {
+                indicator.classList.remove('hidden');
+                indicator.classList.add('flex');
+            }
+        },
+        onend: () => {
             isSpeaking = false;
-            indicator.classList.add('hidden');
-            indicator.classList.remove('flex');
-        };
-
-        utterance.onerror = () => {
-            isSpeaking = false;
-            indicator.classList.add('hidden');
-            indicator.classList.remove('flex');
-        };
-    }
-
-    synth.cancel();
-    synth.speak(utterance);
+            if (indicator) {
+                indicator.classList.add('hidden');
+                indicator.classList.remove('flex');
+            }
+        }
+    });
 }
 
 function toggleVoiceRecognition() {
@@ -364,27 +424,146 @@ function showNotification(message, type = 'info') {
 }
 
 
+// 显示 API 配置弹窗
+function showAPIConfigModal() {
+    const modal = document.createElement('div');
+    modal.id = 'api-config-modal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <i data-lucide="key" class="w-5 h-5"></i>
+                    AI API 配置
+                </h3>
+                <button id="close-modal" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4 text-sm">
+                <div class="border border-blue-200 rounded-lg p-4 bg-blue-50 space-y-2">
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold text-blue-700">通义千问 Qwen (推荐)</span>
+                        <span class="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">最佳效果</span>
+                    </div>
+                    <ol class="list-decimal list-inside text-blue-900 space-y-1 text-xs">
+                        <li>在项目根目录执行 <code>cd proxy</code></li>
+                        <li>复制配置文件：<code>cp env.example .env</code></li>
+                        <li>编辑 <code>.env</code>，填入你的 <code>QWEN_API_KEY</code></li>
+                        <li>安装依赖并启动代理：<code>npm install && npm start</code></li>
+                        <li>确保代理运行在 <code>http://localhost:3001</code></li>
+                    </ol>
+                    <a class="text-xs text-blue-600 hover:underline" href="/QWEN_SETUP_GUIDE.md" target="_blank">
+                        查看完整配置指南 →
+                    </a>
+                </div>
+
+                <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 text-xs text-gray-600 space-y-2">
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold text-gray-800">备用选项</span>
+                        <span class="text-xs bg-gray-500 text-white px-2 py-0.5 rounded">HuggingFace</span>
+                    </div>
+                <p>未配置代理时系统会自动使用 HuggingFace 免费模型，响应较慢，质量一般。推荐尽快配置通义千问。</p>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button id="test-qwen-api" class="flex-1 px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors">
+                        测试代理连接
+                    </button>
+                    <a href="http://localhost:3001/health" target="_blank" class="px-3 py-2 text-sm text-blue-600 hover:underline">
+                        查看代理状态
+                    </a>
+                </div>
+
+                <div id="config-status" class="hidden p-3 rounded-lg text-sm"></div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    lucide.createIcons();
+
+    // 关闭弹窗
+    const closeModal = () => {
+        modal.remove();
+    };
+
+    modal.querySelector('#close-modal').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    // 测试 API
+    modal.querySelector('#test-qwen-api').addEventListener('click', async () => {
+        const statusEl = modal.querySelector('#config-status');
+        statusEl.className = 'p-3 rounded-lg text-sm bg-blue-50 text-blue-700';
+        statusEl.textContent = '正在测试代理连接...';
+        statusEl.classList.remove('hidden');
+
+        const result = await testQwenAPI();
+
+        if (result.success) {
+            statusEl.className = 'p-3 rounded-lg text-sm bg-green-50 text-green-700';
+            statusEl.textContent = result.message || '✓ 代理服务正常，Qwen API 可用。';
+            setAIProvider(AI_PROVIDERS.QWEN);
+        } else {
+            statusEl.className = 'p-3 rounded-lg text-sm bg-red-50 text-red-700';
+            statusEl.textContent = `✗ 测试失败：${result.error}`;
+        }
+    });
+}
+
 export function renderDialogueMode(container) {
     container.innerHTML = `
         <div class="h-full flex flex-col max-w-3xl mx-auto">
             <!-- 语音播放指示器 -->
             <div id="speech-indicator" class="hidden items-center justify-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg mb-2 shadow-lg">
                 <i data-lucide="volume-2" class="w-5 h-5 animate-pulse"></i>
-                <span class="text-sm font-medium">Aurélie parle...</span>
+                <span class="text-sm font-medium">Aurélie 正在说话...</span>
             </div>
 
-            <!-- 语速控制面板 -->
-            <div class="bg-white/80 p-3 rounded-xl mb-2 shadow-sm">
+            <!-- 语音控制面板 -->
+            <div class="bg-white/80 p-3 rounded-xl mb-2 shadow-sm space-y-3">
+                <!-- AI 配置区 -->
+                <div class="flex items-center justify-between gap-4 pb-3 border-b border-gray-200">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="brain" class="w-4 h-4 text-gray-700"></i>
+                        <span class="text-sm font-medium text-gray-700">AI 智能模式:</span>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="ai-mode-toggle" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            <span class="ml-3 text-xs text-gray-500" id="ai-mode-label">已启用</span>
+                        </label>
+                    </div>
+                    <button id="config-ai-btn" class="px-3 py-1 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1">
+                        <i data-lucide="settings" class="w-3 h-3"></i>
+                        配置 API
+                    </button>
+                </div>
+                
+                <!-- 语音选择 -->
+                <div class="flex items-center justify-between gap-4">
+                    <label class="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <i data-lucide="user-voice" class="w-4 h-4"></i>
+                        选择语音:
+                    </label>
+                    <select id="voice-selector" class="flex-grow max-w-xs text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">自动选择（推荐）</option>
+                    </select>
+                </div>
+                
+                <!-- 语速控制 -->
                 <div class="flex items-center justify-between gap-4">
                     <label class="text-sm font-medium text-gray-700 flex items-center gap-2">
                         <i data-lucide="gauge" class="w-4 h-4"></i>
-                        Vitesse de parole:
+                        语速调节:
                     </label>
                     <div class="flex items-center gap-3 flex-grow max-w-xs">
-                        <span class="text-xs text-gray-500">Lent</span>
+                        <span class="text-xs text-gray-500">慢</span>
                         <input type="range" id="speech-rate-slider" min="0.5" max="1.2" step="0.05" value="0.85"
                                class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500">
-                        <span class="text-xs text-gray-500">Rapide</span>
+                        <span class="text-xs text-gray-500">快</span>
                         <span id="rate-display" class="text-sm font-semibold text-blue-600 min-w-[3rem] text-center">0.85x</span>
                     </div>
                 </div>
@@ -395,7 +574,7 @@ export function renderDialogueMode(container) {
             </div>
             <div class="bg-white p-4 rounded-b-2xl shadow-lg border-t border-gray-200">
                 <div class="flex items-center gap-4">
-                    <input type="text" id="chat-input" class="flex-grow w-full border-gray-300 rounded-full py-3 px-5 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Écrivez votre message...">
+                    <input type="text" id="chat-input" class="flex-grow w-full border-gray-300 rounded-full py-3 px-5 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="输入你的消息...">
                     <button id="send-btn" class="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
                         <i data-lucide="send" class="w-6 h-6"></i>
                     </button>
@@ -408,6 +587,77 @@ export function renderDialogueMode(container) {
     `;
 
     lucide.createIcons();
+
+    // 初始化语音选择器
+    const voiceSelector = document.getElementById('voice-selector');
+
+    function populateVoiceSelector() {
+        try {
+            const frenchVoices = getAvailableFrenchVoices();
+
+            // 清空现有选项（保留第一个"自动选择"）
+            while (voiceSelector.options.length > 1) {
+                voiceSelector.remove(1);
+            }
+
+            if (frenchVoices.length === 0) {
+                console.warn('No French voices available yet');
+                return;
+            }
+
+            frenchVoices.forEach(voice => {
+                const option = document.createElement('option');
+                option.value = voice.voiceURI || '';
+                const badge = voice.localService ? '本地' : '云端';
+                const quality = voice.name.includes('Google') ? '⭐优质' :
+                    voice.name.includes('Microsoft') ? '⭐推荐' : '';
+                option.textContent = `${voice.name} (${voice.lang}) [${badge}] ${quality}`;
+                voiceSelector.appendChild(option);
+            });
+
+            console.log(`Loaded ${frenchVoices.length} French voices`);
+        } catch (error) {
+            console.error('Error populating voice selector:', error);
+        }
+    }
+
+    // 延迟加载语音列表，并在语音变化时重新加载
+    setTimeout(populateVoiceSelector, 500);
+    if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = populateVoiceSelector;
+    }
+
+    voiceSelector.addEventListener('change', (e) => {
+        selectedVoiceURI = e.target.value || null;
+        console.log('Selected voice URI:', selectedVoiceURI);
+    });
+
+    // AI 模式切换
+    const aiToggle = document.getElementById('ai-mode-toggle');
+    const aiModeLabel = document.getElementById('ai-mode-label');
+
+    aiToggle.addEventListener('change', (e) => {
+        useAI = e.target.checked;
+        aiModeLabel.textContent = useAI ? '已启用' : '已禁用';
+        console.log(`AI Mode: ${useAI ? 'Enabled' : 'Disabled'}`);
+
+        // 显示提示
+        showNotification(
+            useAI ? 'AI 智能模式已启用，将使用 HuggingFace 模型回复' : '已切换到规则模式，使用预设回复',
+            'info'
+        );
+    });
+
+    // 检查 API 可用性（异步，不阻塞）
+    checkAPIAvailability().then(available => {
+        if (!available && useAI) {
+            console.warn('HuggingFace API may not be available');
+            showNotification('AI 服务可能暂时不可用，将在需要时自动回退到规则模式', 'warning');
+        }
+    });
+
+    // 配置 API 按钮
+    document.getElementById('config-ai-btn').addEventListener('click', showAPIConfigModal);
 
     // 事件监听器
     document.getElementById('send-btn').addEventListener('click', handleUserInput);
@@ -427,9 +677,33 @@ export function renderDialogueMode(container) {
         rateDisplay.textContent = speechRate.toFixed(2) + 'x';
     });
 
+    // 初始化时检查代理状态
+    testQwenAPI()
+        .then((result) => {
+            if (result.success) {
+                const modelInfo = getQwenModelInfo();
+                console.log('Using Qwen Proxy:', modelInfo);
+                showNotification(result.message || '✓ 通义千问代理已就绪', 'success');
+                setAIProvider(AI_PROVIDERS.QWEN);
+            } else {
+                console.warn('Qwen proxy not ready:', result.error);
+                showNotification(
+                    'AI 模式已启用，但未检测到通义千问代理。点击"配置 API"查看配置步骤，系统将临时使用免费的 HuggingFace API（响应较慢）。',
+                    'warning'
+                );
+            }
+        })
+        .catch((error) => {
+            console.error('Failed to check Qwen proxy:', error);
+            showNotification(
+                '无法连接通义千问代理。请确保已启动 proxy 服务，或点击"配置 API"查看指南。',
+                'warning'
+            );
+        });
+
     // 欢迎消息
     setTimeout(() => {
-        const welcomeMessage = "Bonjour ! Bienvenue dans le mode dialogue. Posez-moi une question en français pour commencer.";
+        const welcomeMessage = "Bonjour ! Bienvenue dans le mode dialogue. Pose-moi une question en français pour commencer.";
         renderChatMessage(welcomeMessage, 'ai', true);
         setTimeout(() => speakWithIndicator(welcomeMessage), 500);
     }, 200);

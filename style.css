@@ -148,3 +148,99 @@ body::-webkit-scrollbar-thumb {
     transform: translateY(0);
   }
 }
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .prose h2 {
+    font-size: 1.25rem;
+  }
+  
+  .prose h3 {
+    font-size: 1.1rem;
+  }
+  
+  .activity-grid {
+    gap: 3px;
+  }
+  
+  .activity-day {
+    width: 0.75rem;
+    height: 0.75rem;
+  }
+  
+  /* 优化对话输入区域 */
+  #chat-input {
+    font-size: 16px !important; /* 防止 iOS 自动缩放 */
+  }
+  
+  /* 课程内容表格响应式 */
+  .prose table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+/* 加载动画 */
+.skeleton {
+  animation: skeleton-loading 1s linear infinite alternate;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-color: hsl(200, 20%, 80%);
+  }
+  100% {
+    background-color: hsl(200, 20%, 95%);
+  }
+}
+
+/* 提升卡片交互体验 */
+.mode-card:active, .culture-card:active {
+  transform: translateY(-3px) scale(0.98);
+}
+
+/* 语音按钮增强 */
+button:active {
+  transform: scale(0.95);
+}
+
+/* 通知动画 */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification-enter {
+  animation: slideInRight 0.3s ease-out;
+}
+
+/* 优化滚动性能 */
+#chat-log {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 自定义滚动条（聊天区域） */
+#chat-log::-webkit-scrollbar {
+  width: 6px;
+}
+
+#chat-log::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#chat-log::-webkit-scrollbar-thumb {
+  background-color: rgba(74, 144, 226, 0.3);
+  border-radius: 10px;
+}
+
+#chat-log::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(74, 144, 226, 0.5);
+}

@@ -1,6 +1,8 @@
 import { speak } from '../services/speech_service.js';
+import { saveExerciseAnswers, getExerciseAnswers } from '../utils/progress_manager.js';
 
 let correctAnswers = {};
+const EXERCISE_ID = 'lesson_1_exercises';
 
 async function loadCourseContent(container) {
     try {
@@ -24,11 +26,20 @@ async function loadCourseContent(container) {
         container.appendChild(courseContainer);
 
         lucide.createIcons();
+        
+        // 恢复之前保存的答案
+        setTimeout(() => {
+            const savedAnswers = getExerciseAnswers(EXERCISE_ID);
+            if (savedAnswers) {
+                restoreUserAnswers(savedAnswers);
+                console.log('练习答案已恢复');
+            }
+        }, 500);
     } catch (error) {
         console.error("Failed to load course content:", error);
         container.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow">
-            <h2 class="text-xl font-bold text-red-600">Erreur de chargement</h2>
-            <p>Impossible de charger le contenu du cours. Veuillez réessayer plus tard.</p>
+            <h2 class="text-xl font-bold text-red-600">加载失败</h2>
+            <p>无法加载课程内容，请稍后重试。</p>
         </div>`;
     }
 }
@@ -87,7 +98,7 @@ function parseForInteractivity(wrapper) {
         const checkButton = document.createElement('button');
         checkButton.id = 'check-answers-btn';
         checkButton.className = 'mt-8 px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors';
-        checkButton.textContent = 'Vérifier les réponses';
+        checkButton.textContent = '检查答案';
         exerciseHeader.parentElement.appendChild(checkButton);
         checkButton.addEventListener('click', checkAllAnswers);
     }
@@ -197,7 +208,73 @@ function createMatching(pElement) {
     return pElement;
 }
 
+function collectUserAnswers() {
+    const answers = {
+        fill: [],
+        choice: [],
+        match: {}
+    };
+    
+    document.querySelectorAll('[data-exercise="fill"]').forEach(input => {
+        answers.fill.push(input.value.trim());
+    });
+    
+    document.querySelectorAll('[data-exercise="choice"]').forEach(span => {
+        const index = span.dataset.index;
+        const selectedRadio = document.querySelector(`input[name="choice-${index}"]:checked`);
+        answers.choice.push(selectedRadio ? selectedRadio.value : null);
+    });
+    
+    document.querySelectorAll('.match-source').forEach(source => {
+        const sourceId = source.dataset.matchId;
+        const userAnswer = source.dataset.userAnswer;
+        if (userAnswer) {
+            answers.match[sourceId] = userAnswer;
+        }
+    });
+    
+    return answers;
+}
+
+function restoreUserAnswers(answers) {
+    if (!answers) return;
+    
+    if (answers.fill && Array.isArray(answers.fill)) {
+        document.querySelectorAll('[data-exercise="fill"]').forEach((input, index) => {
+            if (answers.fill[index]) {
+                input.value = answers.fill[index];
+            }
+        });
+    }
+    
+    if (answers.choice && Array.isArray(answers.choice)) {
+        document.querySelectorAll('[data-exercise="choice"]').forEach((span, index) => {
+            const value = answers.choice[index];
+            if (value) {
+                const radio = document.querySelector(`input[name="choice-${index}"][value="${value}"]`);
+                if (radio) radio.checked = true;
+            }
+        });
+    }
+    
+    if (answers.match && typeof answers.match === 'object') {
+        Object.keys(answers.match).forEach(sourceId => {
+            const targetId = answers.match[sourceId];
+            const source = document.querySelector(`.match-source[data-match-id="${sourceId}"]`);
+            const target = document.querySelector(`.match-target[data-match-id="${targetId}"]`);
+            if (source && target) {
+                source.dataset.userAnswer = targetId;
+                target.classList.add('bg-green-200', 'text-green-800', 'font-bold');
+                const rowId = source.closest('tr').dataset.rowId;
+                target.dataset.matchRow = rowId;
+            }
+        });
+    }
+}
+
 function checkAllAnswers() {
+    const userAnswers = collectUserAnswers();
+    saveExerciseAnswers(EXERCISE_ID, userAnswers);
 
     document.querySelectorAll('[data-exercise="fill"]').forEach(input => {
         const isCorrect = input.value.trim().toLowerCase() === correctAnswers.fill[input.dataset.index];
@@ -239,6 +316,13 @@ function checkAllAnswers() {
         resultSpan.className = isCorrect ? 'answer-correct font-bold text-center' : 'answer-incorrect font-bold text-center';
         resultSpan.textContent = isCorrect ? '✓' : '✗';
     });
+    
+    const checkButton = document.getElementById('check-answers-btn');
+    if (checkButton) {
+        checkButton.textContent = '答案已检查 ✓';
+        checkButton.classList.add('bg-green-500', 'hover:bg-green-600');
+        checkButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+    }
 }
 
 export function renderCourseMode(container) {
@@ -246,7 +330,7 @@ export function renderCourseMode(container) {
         <div class="flex justify-center items-center h-64">
             <div class="text-center">
                 <i data-lucide="loader" class="animate-spin text-blue-500 w-12 h-12"></i>
-                <p class="mt-4 text-gray-600">Chargement du cours...</p>
+                <p class="mt-4 text-gray-600">正在加载课程...</p>
             </div>
         </div>
     `;

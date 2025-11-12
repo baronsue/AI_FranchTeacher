@@ -20,8 +20,8 @@ export function renderCultureView(container) {
     container.innerHTML = `
         <div class="fade-in">
             <header class="mb-8">
-                <h1 class="text-4xl font-bold text-gray-800">Explorer la Culture Française</h1>
-                <p class="text-lg text-gray-500 mt-2">Découvrez la richesse et la diversité de la culture française à travers ces thèmes fascinants.</p>
+                <h1 class="text-4xl font-bold text-gray-800">探索法国文化</h1>
+                <p class="text-lg text-gray-500 mt-2">通过这些精彩主题，发现法国文化的丰富性和多样性。</p>
             </header>
             <div id="culture-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             </div>
