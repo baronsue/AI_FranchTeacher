@@ -2,6 +2,9 @@
  * 通义千问 Qwen API 服务
  * 通过本地/远程代理转发请求，避免在前端暴露 API Key。
  */
+import { setQwenProxyUrl } from '../services/qwen_service.js';
+
+setQwenProxyUrl('https://<region>.fc.aliyuncs.com/2016-08-15/proxy/<service>/<function>/qwen');
 
 const DEFAULT_PROXY_URL =
     typeof window !== 'undefined'
