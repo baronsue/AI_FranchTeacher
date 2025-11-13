@@ -31,6 +31,13 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('combined'));
 
+app.get('/', (_req, res) => {
+    res.json({
+        status: 'ok',
+        message: 'Qwen proxy is running. Use /health for status or POST /qwen for requests.',
+    });
+});
+
 app.get('/health', (_req, res) => {
     res.json({
         status: 'ok',
