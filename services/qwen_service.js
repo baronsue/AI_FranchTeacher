@@ -145,8 +145,9 @@ function buildHealthUrl() {
         url.pathname = '/health';
         return url.toString();
     } catch (error) {
-        // proxyUrl 可能是相对地址，退回简单拼接
-        return `${window.location.origin}/health`;
+        // proxyUrl 可能是相对地址，从中提取基础URL
+        const baseUrl = proxyUrl.replace(/\/qwen$/, '');
+        return `${baseUrl}/health`;
     }
 }
 

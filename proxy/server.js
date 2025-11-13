@@ -62,8 +62,9 @@ app.post('/qwen', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`[Qwen Proxy] Server is running on http://localhost:${port}`);
+const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+app.listen(port, host, () => {
+    console.log(`[Qwen Proxy] Server is running on http://${host}:${port}`);
     console.log(`[Qwen Proxy] Allowed origins: ${allowedOrigins.join(', ')}`);
 });
 
