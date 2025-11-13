@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aurélie | 你的AI法语老师</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+        // 静默 Tailwind CSS CDN 生产环境警告
+        tailwind.config = {
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="style.css">
