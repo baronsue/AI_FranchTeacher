@@ -2,13 +2,14 @@ import { navigateTo } from './router.js';
 import { createHeader } from './components/header.js';
 import { renderDashboard } from './views/dashboard_view.js';
 import { renderCourseMode } from './views/course_view.js';
+import { renderEnhancedCourse } from './views/course_view_enhanced_entry.js';
 import { renderDialogueMode } from './views/dialogue_view.js';
 import { setQwenProxyUrl, testQwenAPI, getQwenModelInfo } from './services/qwen_service.js';
 import { setAIProvider, AI_PROVIDERS } from './services/ai_service.js';
 
 const routes = {
     'dashboard': renderDashboard,
-    'course': renderCourseMode,
+    'course': renderEnhancedCourse,  // 使用增强版课程视图
     'dialogue': renderDialogueMode,
 };
 
