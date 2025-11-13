@@ -140,6 +140,13 @@ export function setAIProvider(provider) {
 }
 
 /**
+ * 获取当前 AI 提供商
+ */
+export function getCurrentProvider() {
+    return currentProvider;
+}
+
+/**
  * 获取当前提供商
  */
 export function getCurrentProvider() {

@@ -1,6 +1,6 @@
 import { speak, getAvailableFrenchVoices } from '../services/speech_service.js';
 import { recognition } from '../services/speech_service.js';
-import { generateAIResponse, checkAPIAvailability, AI_PROVIDERS, setAIProvider } from '../services/ai_service.js';
+import { generateAIResponse, checkAPIAvailability, AI_PROVIDERS, setAIProvider, getCurrentProvider } from '../services/ai_service.js';
 import { testQwenAPI, getQwenModelInfo } from '../services/qwen_service.js';
 
 let isRecognizing = false;
@@ -648,13 +648,15 @@ export function renderDialogueMode(container) {
         );
     });
 
-    // 检查 API 可用性（异步，不阻塞）
-    checkAPIAvailability().then(available => {
-        if (!available && useAI) {
-            console.warn('HuggingFace API may not be available');
-            showNotification('AI 服务可能暂时不可用，将在需要时自动回退到规则模式', 'warning');
-        }
-    });
+    // 检查 API 可用性（异步，不阻塞）- 只在使用 HuggingFace 时检查
+    if (getCurrentProvider() === AI_PROVIDERS.HUGGINGFACE) {
+        checkAPIAvailability().then(available => {
+            if (!available && useAI) {
+                console.warn('HuggingFace API may not be available');
+                showNotification('AI 服务可能暂时不可用，将在需要时自动回退到规则模式', 'warning');
+            }
+        });
+    }
 
     // 配置 API 按钮
     document.getElementById('config-ai-btn').addEventListener('click', showAPIConfigModal);
