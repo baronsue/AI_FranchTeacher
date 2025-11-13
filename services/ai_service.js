@@ -147,13 +147,6 @@ export function getCurrentProvider() {
 }
 
 /**
- * 获取当前提供商
- */
-export function getCurrentProvider() {
-    return currentProvider;
-}
-
-/**
  * 生成 AI 回复
  * @param {Array} conversationHistory - 对话历史 [{role: 'user'|'assistant', content: string}]
  * @param {string} userInput - 用户最新输入
