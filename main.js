@@ -85,6 +85,8 @@ function initializeApp() {
         function updateHeader() {
             headerContainer.innerHTML = '';
             headerContainer.appendChild(createHeader());
+            // 重新初始化 lucide 图标
+            lucide.createIcons();
         }
 
         // 初始化 header
