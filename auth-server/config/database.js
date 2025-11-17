@@ -3,28 +3,41 @@ require('dotenv').config();
 
 // 创建PostgreSQL连接池
 // 支持 Render 的 DATABASE_URL 或本地开发的独立配置
-const pool = new Pool(
-    process.env.DATABASE_URL
-        ? {
-              connectionString: process.env.DATABASE_URL,
-              ssl: {
-                  rejectUnauthorized: false, // Render PostgreSQL 需要
-              },
-              max: 20,
-              idleTimeoutMillis: 30000,
-              connectionTimeoutMillis: 2000,
-          }
-        : {
-              host: process.env.DB_HOST || 'localhost',
-              port: process.env.DB_PORT || 5432,
-              database: process.env.DB_NAME || 'ai_franchteacher',
-              user: process.env.DB_USER || 'postgres',
-              password: process.env.DB_PASSWORD,
-              max: 20,
-              idleTimeoutMillis: 30000,
-              connectionTimeoutMillis: 2000,
-          }
-);
+let poolConfig;
+
+if (process.env.DATABASE_URL) {
+    // 使用 DATABASE_URL 连接（Render 或其他云服务）
+    const isLocalDatabase = process.env.DATABASE_URL.includes('localhost') ||
+                           process.env.DATABASE_URL.includes('127.0.0.1');
+
+    poolConfig = {
+        connectionString: process.env.DATABASE_URL,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+    };
+
+    // 只有远程数据库才需要 SSL
+    if (!isLocalDatabase) {
+        poolConfig.ssl = {
+            rejectUnauthorized: false, // Render PostgreSQL 需要
+        };
+    }
+} else {
+    // 本地开发，使用独立配置参数
+    poolConfig = {
+        host: process.env.DB_HOST || 'localhost',
+        port: process.env.DB_PORT || 5432,
+        database: process.env.DB_NAME || 'ai_franchteacher',
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+    };
+}
+
+const pool = new Pool(poolConfig);
 
 // 测试数据库连接
 pool.on('connect', () => {
