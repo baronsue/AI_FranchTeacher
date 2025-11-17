@@ -1,5 +1,5 @@
 import { speak } from '../services/speech_service.js';
-import { saveExerciseAnswers, getExerciseAnswers } from '../utils/progress_manager.js';
+import { userDataService } from '../services/user_data_service.js';
 
 let correctAnswers = {};
 const EXERCISE_ID = 'lesson_1_exercises';
@@ -26,13 +26,20 @@ async function loadCourseContent(container) {
         container.appendChild(courseContainer);
 
         lucide.createIcons();
-        
+
         // 恢复之前保存的答案
-        setTimeout(() => {
-            const savedAnswers = getExerciseAnswers(EXERCISE_ID);
-            if (savedAnswers) {
-                restoreUserAnswers(savedAnswers);
-                console.log('练习答案已恢复');
+        setTimeout(async () => {
+            try {
+                const exerciseData = await userDataService.getExercise(EXERCISE_ID);
+                if (exerciseData && exerciseData.length > 0) {
+                    const savedAnswers = exerciseData[0].answers;
+                    if (savedAnswers) {
+                        restoreUserAnswers(savedAnswers);
+                        console.log('练习答案已从云端恢复');
+                    }
+                }
+            } catch (error) {
+                console.error('恢复练习答案失败:', error);
             }
         }, 500);
     } catch (error) {
@@ -272,18 +279,25 @@ function restoreUserAnswers(answers) {
     }
 }
 
-function checkAllAnswers() {
+async function checkAllAnswers() {
     const userAnswers = collectUserAnswers();
-    saveExerciseAnswers(EXERCISE_ID, userAnswers);
 
+    // 计算分数
+    let totalQuestions = 0;
+    let correctCount = 0;
+
+    // 检查填空题
     document.querySelectorAll('[data-exercise="fill"]').forEach(input => {
+        totalQuestions++;
         const isCorrect = input.value.trim().toLowerCase() === correctAnswers.fill[input.dataset.index];
+        if (isCorrect) correctCount++;
         input.classList.toggle('correct', isCorrect);
         input.classList.toggle('incorrect', !isCorrect);
     });
 
-
+    // 检查选择题
     document.querySelectorAll('[data-exercise="choice"]').forEach(span => {
+        totalQuestions++;
         const index = span.dataset.index;
         const selectedRadio = document.querySelector(`input[name="choice-${index}"]:checked`);
         const resultSpan = span.nextElementSibling || document.createElement('span');
@@ -292,6 +306,7 @@ function checkAllAnswers() {
 
         if (selectedRadio) {
             const isCorrect = selectedRadio.value === correctAnswers.choice[index];
+            if (isCorrect) correctCount++;
             resultSpan.textContent = isCorrect ? '✓' : '✗';
             resultSpan.className = isCorrect ? 'answer-correct' : 'answer-incorrect';
         } else {
@@ -300,13 +315,15 @@ function checkAllAnswers() {
         }
     });
 
-
+    // 检查匹配题
     document.querySelectorAll('.match-source').forEach(source => {
+        totalQuestions++;
         const sourceId = source.dataset.matchId;
         const userAnswer = source.dataset.userAnswer;
         const correctAnswer = correctAnswers.match[sourceId];
         const isCorrect = userAnswer === correctAnswer;
-        
+        if (isCorrect) correctCount++;
+
         const resultSpan = source.nextElementSibling || document.createElement('span');
         if (!source.nextElementSibling) {
             const cell = document.createElement('td');
@@ -316,10 +333,29 @@ function checkAllAnswers() {
         resultSpan.className = isCorrect ? 'answer-correct font-bold text-center' : 'answer-incorrect font-bold text-center';
         resultSpan.textContent = isCorrect ? '✓' : '✗';
     });
-    
+
+    // 计算分数百分比
+    const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+    const completed = score >= 60; // 60分以上算完成
+
+    // 保存到后端
+    try {
+        await userDataService.saveExercise(EXERCISE_ID, userAnswers, score, completed);
+        console.log(`练习已保存到云端，得分: ${score}分`);
+
+        // 如果完成，添加积分
+        if (completed && score === 100) {
+            await userDataService.addPoints(10, '完美完成课程练习', 'exercise');
+        } else if (completed) {
+            await userDataService.addPoints(5, '完成课程练习', 'exercise');
+        }
+    } catch (error) {
+        console.error('保存练习失败:', error);
+    }
+
     const checkButton = document.getElementById('check-answers-btn');
     if (checkButton) {
-        checkButton.textContent = '答案已检查 ✓';
+        checkButton.textContent = `答案已检查 ✓ (得分: ${score}分)`;
         checkButton.classList.add('bg-green-500', 'hover:bg-green-600');
         checkButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
     }

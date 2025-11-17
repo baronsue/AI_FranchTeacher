@@ -43,7 +43,7 @@ export async function navigateTo(view, container, routes = {}) {
 
         const registeredRenderer = routes[view];
         if (typeof registeredRenderer === 'function') {
-            registeredRenderer(container);
+            await registeredRenderer(container);
             return;
         }
 
@@ -73,7 +73,7 @@ export async function navigateTo(view, container, routes = {}) {
             const viewInstance = new renderFunction();
             viewInstance.render(container);
         } else if (typeof renderFunction === 'function') {
-            renderFunction(container);
+            await renderFunction(container);
         } else {
             throw new Error(`La fonction de rendu '${loaderConfiguration.exportName}' est introuvable pour la vue : ${view}`);
         }
