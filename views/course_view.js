@@ -109,18 +109,29 @@ function parseForInteractivity(wrapper) {
         }
 
         let element = exerciseHeader.nextElementSibling;
+        let processedCount = 0;
         while (element) {
+            console.log(`检查元素: ${element.tagName}, 文本: "${element.textContent.substring(0, 30)}..."`);
+
             if (element.tagName === 'P' && element.textContent.startsWith('1. 填空题')) {
+                console.log('→ 处理填空题');
                 element = createFillInTheBlanks(element);
+                processedCount++;
             } else if (element.tagName === 'P' && element.textContent.startsWith('2. 选择题')) {
+                console.log('→ 处理选择题');
                 element = createMultipleChoice(element);
+                processedCount++;
             } else if (element.tagName === 'P' && element.textContent.startsWith('3. 匹配题')) {
-                 element = createMatching(element);
+                console.log('→ 处理匹配题');
+                element = createMatching(element);
+                processedCount++;
             } else if(element.tagName === 'H3' || element.tagName === 'H2') {
-                 break; // Stop at the next section
+                console.log('→ 遇到下一个章节，停止');
+                break; // Stop at the next section
             }
             element = element.nextElementSibling;
         }
+        console.log(`练习部分 ${headerIndex + 1} 处理完成，共处理 ${processedCount} 种题型`);
 
         // 只在第一个练习部分添加检查按钮
         if (headerIndex === 0) {
@@ -174,12 +185,22 @@ function createFillInTheBlanks(pElement) {
     const list = pElement.nextElementSibling;
     if (list && list.tagName === 'OL') {
         Array.from(list.children).forEach((li, index) => {
-            // 替换任意数量的下划线（2个或更多）
-            li.innerHTML = li.innerHTML.replace(/_{2,}/g, `<input type="text" class="exercise-input border border-gray-300 rounded px-2 py-1" data-exercise="fill" data-index="${index}">`);
+            // 替换任意数量的下划线，宽度根据下划线数量动态调整
+            li.innerHTML = li.innerHTML.replace(/_{2,}/g, (match) => {
+                const width = Math.max(100, match.length * 12); // 每个下划线约12px
+                return `<input type="text"
+                    class="exercise-input border-2 border-blue-300 rounded px-3 py-1 focus:border-blue-500 focus:outline-none bg-white"
+                    data-exercise="fill"
+                    data-index="${index}"
+                    style="width: ${width}px; min-width: 100px; display: inline-block;"
+                    placeholder="填写答案">`;
+            });
         });
         pElement.parentNode.insertBefore(list, pElement.nextSibling);
+        console.log(`✓ 创建了 ${list.children.length} 个填空题输入框`);
         return list;
     }
+    console.warn('未找到填空题列表');
     return pElement;
 }
 
@@ -190,14 +211,20 @@ function createMultipleChoice(pElement) {
             // 替换任意数量的下划线（2个或更多）
             li.innerHTML = li.innerHTML.replace(/_{2,}/g, `
                 <span class="font-semibold mx-2" data-exercise="choice" data-index="${index}">
-                    <label class="mr-3 cursor-pointer"><input type="radio" name="choice-${index}" value="un" class="mr-1"> un</label>
-                    <label class="cursor-pointer"><input type="radio" name="choice-${index}" value="une" class="mr-1"> une</label>
+                    <label class="mr-3 cursor-pointer hover:bg-blue-50 p-1 rounded">
+                        <input type="radio" name="choice-${index}" value="un" class="mr-1"> un
+                    </label>
+                    <label class="cursor-pointer hover:bg-blue-50 p-1 rounded">
+                        <input type="radio" name="choice-${index}" value="une" class="mr-1"> une
+                    </label>
                 </span>
             `);
         });
         pElement.parentNode.insertBefore(list, pElement.nextSibling);
+        console.log(`✓ 创建了 ${list.children.length} 个选择题`);
         return list;
     }
+    console.warn('未找到选择题列表');
     return pElement;
 }
 
@@ -248,8 +275,10 @@ function createMatching(pElement) {
             }
         });
         pElement.parentNode.insertBefore(table, pElement.nextSibling);
+        console.log(`✓ 创建了匹配题（${rows.length - 1} 行）`);
         return table;
     }
+    console.warn('未找到匹配题表格');
     return pElement;
 }
 
