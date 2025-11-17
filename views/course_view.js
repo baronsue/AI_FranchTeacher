@@ -1,7 +1,12 @@
 import { speak } from '../services/speech_service.js';
 import { userDataService } from '../services/user_data_service.js';
 
-let correctAnswers = {};
+let correctAnswers = {
+    fill: [],
+    choice: [],
+    match: {}
+};
+let globalInputIndex = 0; // 全局输入框索引计数器
 const EXERCISE_ID = 'lesson_1_exercises';
 
 async function loadCourseContent(container) {
@@ -52,6 +57,13 @@ async function loadCourseContent(container) {
 }
 
 function parseForInteractivity(wrapper) {
+    // 重置全局变量（每次加载课程时）
+    correctAnswers = {
+        fill: [],
+        choice: [],
+        match: {}
+    };
+    globalInputIndex = 0;
 
     const dialogueParagraphs = Array.from(wrapper.querySelectorAll('p')).filter(p => p.textContent.includes('Aurélie:') || p.textContent.includes('Li Wei:'));
     dialogueParagraphs.forEach(p => {
@@ -114,8 +126,31 @@ function parseForInteractivity(wrapper) {
             const text = element.textContent.trim();
             console.log(`检查元素: ${element.tagName}, 文本: "${text.substring(0, 30)}..."`);
 
-            // 检查是否包含关键词（不依赖具体格式）
-            if (text.includes('填空题')) {
+            // 如果是 OL，检查其内部的每个 LI
+            if (element.tagName === 'OL') {
+                console.log('→ 发现 OL 列表，检查内部的 LI');
+                const listItems = Array.from(element.children);
+                listItems.forEach((li, index) => {
+                    const liText = li.textContent.trim();
+                    console.log(`  检查 LI ${index + 1}: "${liText.substring(0, 30)}..."`);
+
+                    if (liText.includes('填空题')) {
+                        console.log('  → 处理填空题');
+                        createFillInTheBlanks(li);
+                        processedCount++;
+                    } else if (liText.includes('选择题')) {
+                        console.log('  → 处理选择题');
+                        createMultipleChoice(li);
+                        processedCount++;
+                    } else if (liText.includes('匹配题')) {
+                        console.log('  → 处理匹配题');
+                        createMatching(li);
+                        processedCount++;
+                    }
+                });
+            }
+            // 单独的题型元素（兼容旧格式）
+            else if (text.includes('填空题')) {
                 console.log('→ 处理填空题');
                 element = createFillInTheBlanks(element);
                 processedCount++;
@@ -179,25 +214,36 @@ function parseAnswers(answerString) {
 
         // 解析填空题答案
         if (parts[0]) {
-            const fillMatches = parts[0].match(/[a-z]+\.\s*[\wé]+/gi);
+            // 支持两种格式: "a. suis" 和 "a voudrais" (有无点号都可以)
+            // 匹配: a-任意内容, b-任意内容, 等等
+            const fillMatches = parts[0].match(/[a-e]\.?\s*[^,；;]+/gi);
             if (fillMatches && fillMatches.length > 0) {
-                correctAnswers.fill = fillMatches.map(s => s.split('.')[1].trim());
-                console.log('✓ 填空题答案:', correctAnswers.fill);
+                // 移除字母前缀和可选的点号，只保留答案
+                const answers = fillMatches.map(s => {
+                    // 移除 "a. " 或 "a " 前缀
+                    return s.replace(/^[a-e]\.?\s*/, '').trim();
+                });
+                // 追加到现有答案数组（支持多个练习部分）
+                correctAnswers.fill = correctAnswers.fill.concat(answers);
+                console.log('✓ 填空题答案（累积）:', correctAnswers.fill);
             } else {
                 console.warn('未找到填空题答案');
-                correctAnswers.fill = [];
             }
         }
 
         // 解析选择题答案
         if (parts[1]) {
-            const choiceMatches = parts[1].match(/[a-z]+\.\s*[\wé]+/gi);
+            // 选择题答案可能是中文或英文，支持有无点号
+            const choiceMatches = parts[1].match(/[a-e]\.?\s*[^,；;]+/gi);
             if (choiceMatches && choiceMatches.length > 0) {
-                correctAnswers.choice = choiceMatches.map(s => s.split('.')[1].trim());
-                console.log('✓ 选择题答案:', correctAnswers.choice);
+                const answers = choiceMatches.map(s => {
+                    return s.replace(/^[a-e]\.?\s*/, '').trim();
+                });
+                // 追加到现有答案数组
+                correctAnswers.choice = correctAnswers.choice.concat(answers);
+                console.log('✓ 选择题答案（累积）:', correctAnswers.choice);
             } else {
                 console.warn('未找到选择题答案');
-                correctAnswers.choice = [];
             }
         }
 
@@ -239,12 +285,13 @@ function createFillInTheBlanks(element) {
     }
 
     if (list && list.tagName === 'OL') {
-        let inputIndex = 0; // 全局计数器，为每个输入框分配唯一索引
+        let localCount = 0; // 本次创建的输入框数量
         Array.from(list.children).forEach((li) => {
             // 替换任意数量的下划线，宽度根据下划线数量动态调整
             li.innerHTML = li.innerHTML.replace(/_{2,}/g, (match) => {
                 const width = Math.max(100, match.length * 12); // 每个下划线约12px
-                const currentIndex = inputIndex++; // 使用当前索引并递增
+                const currentIndex = globalInputIndex++; // 使用全局索引并递增
+                localCount++;
                 return `<input type="text"
                     class="exercise-input border-2 border-blue-300 rounded px-3 py-1 focus:border-blue-500 focus:outline-none bg-white"
                     data-exercise="fill"
@@ -253,7 +300,7 @@ function createFillInTheBlanks(element) {
                     placeholder="填写答案">`;
             });
         });
-        console.log(`✓ 创建了 ${inputIndex} 个填空题输入框`);
+        console.log(`✓ 创建了 ${localCount} 个填空题输入框（全局索引: ${globalInputIndex - localCount} - ${globalInputIndex - 1}）`);
 
         // 如果原始元素是 LI，返回 LI 以便循环继续到下一个 LI
         return element.tagName === 'LI' ? element : list;
