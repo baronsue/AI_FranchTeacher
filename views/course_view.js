@@ -78,12 +78,32 @@ function parseForInteractivity(wrapper) {
         });
     });
 
+    // 找到所有 "Exercices Interactifs" 标题（可能有多个单元）
+    const exerciseHeaders = Array.from(wrapper.querySelectorAll('h3')).filter(h3 =>
+        h3.textContent.includes('Exercices Interactifs') || h3.textContent.includes('练习')
+    );
 
-    const exerciseHeader = wrapper.querySelector('h3#exercices-interactifs');
-    if (exerciseHeader) {
+    console.log('找到练习题部分:', exerciseHeaders.length);
 
-        const answerComment = Array.from(wrapper.childNodes).find(node => node.nodeType === 8 && node.textContent.trim().startsWith('答案：'));
+    exerciseHeaders.forEach((exerciseHeader, headerIndex) => {
+        // 查找这个练习部分的答案注释
+        let currentElement = exerciseHeader;
+        let answerComment = null;
+
+        // 向后查找直到找到答案注释或下一个标题
+        while (currentElement && currentElement.nextSibling) {
+            currentElement = currentElement.nextSibling;
+            if (currentElement.nodeType === 8 && currentElement.textContent.includes('答案')) {
+                answerComment = currentElement;
+                break;
+            }
+            if (currentElement.tagName === 'H2' || currentElement.tagName === 'H3') {
+                break;
+            }
+        }
+
         if (answerComment) {
+            console.log('找到答案:', answerComment.textContent.substring(0, 50));
             parseAnswers(answerComment.textContent);
             answerComment.remove();
         }
@@ -102,13 +122,29 @@ function parseForInteractivity(wrapper) {
             element = element.nextElementSibling;
         }
 
-        const checkButton = document.createElement('button');
-        checkButton.id = 'check-answers-btn';
-        checkButton.className = 'mt-8 px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors';
-        checkButton.textContent = '检查答案';
-        exerciseHeader.parentElement.appendChild(checkButton);
-        checkButton.addEventListener('click', checkAllAnswers);
-    }
+        // 只在第一个练习部分添加检查按钮
+        if (headerIndex === 0) {
+            const checkButton = document.createElement('button');
+            checkButton.id = 'check-answers-btn';
+            checkButton.className = 'mt-8 px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors';
+            checkButton.textContent = '检查答案';
+
+            // 找到练习部分的结束位置插入按钮
+            let insertAfter = exerciseHeader;
+            let sibling = exerciseHeader.nextElementSibling;
+            while (sibling && sibling.tagName !== 'H2' && sibling.tagName !== 'H3') {
+                insertAfter = sibling;
+                sibling = sibling.nextElementSibling;
+            }
+
+            if (insertAfter.parentElement) {
+                insertAfter.parentElement.insertBefore(checkButton, insertAfter.nextSibling);
+            }
+
+            checkButton.addEventListener('click', checkAllAnswers);
+            console.log('检查答案按钮已添加');
+        }
+    });
 }
 
 function parseAnswers(answerString) {
@@ -138,7 +174,8 @@ function createFillInTheBlanks(pElement) {
     const list = pElement.nextElementSibling;
     if (list && list.tagName === 'OL') {
         Array.from(list.children).forEach((li, index) => {
-            li.innerHTML = li.innerHTML.replace('______', `<input type="text" class="exercise-input" data-exercise="fill" data-index="${index}">`);
+            // 替换任意数量的下划线（2个或更多）
+            li.innerHTML = li.innerHTML.replace(/_{2,}/g, `<input type="text" class="exercise-input border border-gray-300 rounded px-2 py-1" data-exercise="fill" data-index="${index}">`);
         });
         pElement.parentNode.insertBefore(list, pElement.nextSibling);
         return list;
@@ -150,7 +187,8 @@ function createMultipleChoice(pElement) {
     const list = pElement.nextElementSibling;
     if (list && list.tagName === 'OL') {
         Array.from(list.children).forEach((li, index) => {
-            li.innerHTML = li.innerHTML.replace('______', `
+            // 替换任意数量的下划线（2个或更多）
+            li.innerHTML = li.innerHTML.replace(/_{2,}/g, `
                 <span class="font-semibold mx-2" data-exercise="choice" data-index="${index}">
                     <label class="mr-3 cursor-pointer"><input type="radio" name="choice-${index}" value="un" class="mr-1"> un</label>
                     <label class="cursor-pointer"><input type="radio" name="choice-${index}" value="une" class="mr-1"> une</label>
