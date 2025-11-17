@@ -9,7 +9,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // ============================================
 // 中间件配置

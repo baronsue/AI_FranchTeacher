@@ -8,8 +8,8 @@ export function createHeader() {
     const header = document.createElement('header');
     header.className = 'bg-white shadow-md sticky top-0 z-50';
 
-    const user = authService.getCurrentUser();
     const isAuthenticated = authService.isAuthenticated();
+    const user = isAuthenticated ? authService.getCurrentUser() : null;
 
     header.innerHTML = `
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -19,17 +19,19 @@ export function createHeader() {
                     <span class="ml-3 text-2xl font-bold text-[#333]">Aurélie</span>
                 </div>
 
-                <nav class="hidden md:flex items-center space-x-8">
-                    <a href="#" id="nav-dashboard" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">学习面板</a>
-                    <a href="#" id="nav-course" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">课程模式</a>
-                    <a href="#" id="nav-dialogue" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">对话模式</a>
-                    <a href="#" id="nav-culture" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">文化探索</a>
-                </nav>
+                ${isAuthenticated ? `
+                    <nav class="hidden md:flex items-center space-x-8">
+                        <a href="#" id="nav-dashboard" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">学习面板</a>
+                        <a href="#" id="nav-course" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">课程模式</a>
+                        <a href="#" id="nav-dialogue" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">对话模式</a>
+                        <a href="#" id="nav-culture" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">文化探索</a>
+                    </nav>
 
-                <!-- 移动端菜单按钮 -->
-                <button id="mobile-menu-btn" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                    <i data-lucide="menu" class="w-6 h-6 text-gray-600"></i>
-                </button>
+                    <!-- 移动端菜单按钮 -->
+                    <button id="mobile-menu-btn" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        <i data-lucide="menu" class="w-6 h-6 text-gray-600"></i>
+                    </button>
+                ` : ''}
 
                 <div class="flex items-center space-x-4">
                     ${isAuthenticated ? `
@@ -44,7 +46,10 @@ export function createHeader() {
                         <button id="logout-btn" class="text-sm text-gray-600 hover:text-red-600 font-medium transition-colors">
                             <i data-lucide="log-out" class="w-5 h-5"></i>
                         </button>
-                    ` : ''}
+                    ` : `
+                        <!-- 未登录状态 -->
+                        <span class="text-sm font-medium text-gray-600">你的AI法语老师</span>
+                    `}
                 </div>
             </div>
         </div>
@@ -83,41 +88,57 @@ export function createHeader() {
         }
     };
 
-    header.querySelector('#home-link').addEventListener('click', () => navigate('dashboard'));
-    header.querySelector('#nav-dashboard').addEventListener('click', (e) => handleNavClick(e, 'dashboard'));
-    header.querySelector('#nav-course').addEventListener('click', (e) => handleNavClick(e, 'course'));
-    header.querySelector('#nav-dialogue').addEventListener('click', (e) => handleNavClick(e, 'dialogue'));
-    header.querySelector('#nav-culture').addEventListener('click', (e) => handleNavClick(e, 'culture'));
+    // Logo点击 - 只在登录时导航到dashboard
+    header.querySelector('#home-link').addEventListener('click', () => {
+        if (isAuthenticated) {
+            navigate('dashboard');
+        }
+    });
 
-    // 登出按钮
-    const logoutBtn = header.querySelector('#logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            if (confirm('确定要登出吗？')) {
-                await authService.logout();
-            }
+    // 导航链接 - 只在登录时存在
+    if (isAuthenticated) {
+        const navDashboard = header.querySelector('#nav-dashboard');
+        const navCourse = header.querySelector('#nav-course');
+        const navDialogue = header.querySelector('#nav-dialogue');
+        const navCulture = header.querySelector('#nav-culture');
+
+        if (navDashboard) navDashboard.addEventListener('click', (e) => handleNavClick(e, 'dashboard'));
+        if (navCourse) navCourse.addEventListener('click', (e) => handleNavClick(e, 'course'));
+        if (navDialogue) navDialogue.addEventListener('click', (e) => handleNavClick(e, 'dialogue'));
+        if (navCulture) navCulture.addEventListener('click', (e) => handleNavClick(e, 'culture'));
+
+        // 登出按钮
+        const logoutBtn = header.querySelector('#logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                if (confirm('确定要登出吗？')) {
+                    await authService.logout();
+                }
+            });
+        }
+
+        // 移动端菜单切换
+        const mobileMenuBtn = header.querySelector('#mobile-menu-btn');
+        const mobileMenu = header.querySelector('#mobile-menu');
+
+        if (mobileMenuBtn && mobileMenu) {
+            mobileMenuBtn.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+                const icon = mobileMenuBtn.querySelector('i');
+                const isOpen = !mobileMenu.classList.contains('hidden');
+                icon.setAttribute('data-lucide', isOpen ? 'x' : 'menu');
+                lucide.createIcons();
+            });
+        }
+
+        // 移动端导航链接
+        header.querySelectorAll('.mobile-nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                const view = link.getAttribute('data-view');
+                handleNavClick(e, view);
+            });
         });
     }
-
-    // 移动端菜单切换
-    const mobileMenuBtn = header.querySelector('#mobile-menu-btn');
-    const mobileMenu = header.querySelector('#mobile-menu');
-
-    mobileMenuBtn.addEventListener('click', () => {
-        mobileMenu.classList.toggle('hidden');
-        const icon = mobileMenuBtn.querySelector('i');
-        const isOpen = !mobileMenu.classList.contains('hidden');
-        icon.setAttribute('data-lucide', isOpen ? 'x' : 'menu');
-        lucide.createIcons();
-    });
-
-    // 移动端导航链接
-    header.querySelectorAll('.mobile-nav-link').forEach(link => {
-        link.addEventListener('click', (e) => {
-            const view = link.getAttribute('data-view');
-            handleNavClick(e, view);
-        });
-    });
 
     return header;
 }

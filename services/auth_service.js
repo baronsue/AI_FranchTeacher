@@ -1,6 +1,6 @@
 // 认证服务 - 管理用户认证和令牌
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'http://localhost:3002/api';
 
 class AuthService {
     constructor() {

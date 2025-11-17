@@ -207,9 +207,9 @@ npm start
 ```
 ===========================================
 🚀 认证服务器启动成功
-📡 端口: 3001
+📡 端口: 3002
 🌍 环境: development
-🔗 健康检查: http://localhost:3001/health
+🔗 健康检查: http://localhost:3002/health
 ===========================================
 ✅ 数据库连接成功
 ```
@@ -218,10 +218,10 @@ npm start
 
 ```bash
 # 测试健康检查
-curl http://localhost:3001/health
+curl http://localhost:3002/health
 
 # 测试数据库连接
-curl http://localhost:3001/health/db
+curl http://localhost:3002/health/db
 ```
 
 ---
@@ -361,7 +361,7 @@ ORDER BY n_live_tup DESC;
 
 ### 基础URL
 ```
-http://localhost:3001/api
+http://localhost:3002/api
 ```
 
 ### 认证接口
