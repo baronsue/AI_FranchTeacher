@@ -75,23 +75,33 @@ function initializeApp() {
         if (!headerContainer) {
             throw new Error('Header container not found');
         }
-        headerContainer.appendChild(createHeader());
 
         const appContainer = document.getElementById('app-container');
         if (!appContainer) {
             throw new Error('App container not found');
         }
 
+        // 更新 header 的辅助函数
+        function updateHeader() {
+            headerContainer.innerHTML = '';
+            headerContainer.appendChild(createHeader());
+        }
+
+        // 初始化 header
+        updateHeader();
+
         // 监听自定义导航事件
         window.addEventListener('navigate', (event) => {
             const { view } = event.detail;
             navigateTo(view, appContainer, routes);
+            updateHeader(); // 导航时更新 header
         });
 
         // 监听URL hash变化
         window.addEventListener('hashchange', () => {
             const route = getRouteFromHash();
             navigateTo(route, appContainer, routes);
+            updateHeader(); // 路由变化时更新 header
         });
 
         // 初始路由：检查登录状态
