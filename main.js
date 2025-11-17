@@ -6,12 +6,22 @@ import { renderEnhancedCourse } from './views/course_view_enhanced_entry.js';
 import { renderDialogueMode } from './views/dialogue_view.js';
 import { setQwenProxyUrl, testQwenAPI, getQwenModelInfo } from './services/qwen_service.js';
 import { setAIProvider, AI_PROVIDERS } from './services/ai_service.js';
+import { authService } from './services/auth_service.js';
 
 const routes = {
     'dashboard': renderDashboard,
     'course': renderEnhancedCourse,  // 使用增强版课程视图
     'dialogue': renderDialogueMode,
 };
+
+// 从URL hash获取路由
+function getRouteFromHash() {
+    const hash = window.location.hash.slice(1); // 移除#
+    if (hash.startsWith('/')) {
+        return hash.slice(1); // 移除开头的/
+    }
+    return hash || 'dashboard';
+}
 
 function initializeApp() {
     const deployedProxy = 'https://qwen-proxy.onrender.com/qwen';
@@ -72,12 +82,32 @@ function initializeApp() {
             throw new Error('App container not found');
         }
 
+        // 监听自定义导航事件
         window.addEventListener('navigate', (event) => {
             const { view } = event.detail;
             navigateTo(view, appContainer, routes);
         });
 
-        navigateTo('dashboard', appContainer, routes);
+        // 监听URL hash变化
+        window.addEventListener('hashchange', () => {
+            const route = getRouteFromHash();
+            navigateTo(route, appContainer, routes);
+        });
+
+        // 初始路由：检查登录状态
+        const initialRoute = getRouteFromHash();
+        const isAuthenticated = authService.isAuthenticated();
+
+        if (!isAuthenticated && initialRoute !== 'login') {
+            // 未登录且不是访问登录页，跳转到登录页
+            window.location.hash = '#/login';
+        } else if (isAuthenticated && initialRoute === 'login') {
+            // 已登录但访问登录页，跳转到dashboard
+            window.location.hash = '#/dashboard';
+        } else {
+            // 正常导航
+            navigateTo(initialRoute, appContainer, routes);
+        }
     } catch (error) {
         console.error('Failed to initialize app:', error);
         document.body.innerHTML = `
