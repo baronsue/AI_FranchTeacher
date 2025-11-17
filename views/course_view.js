@@ -227,39 +227,49 @@ function parseAnswers(answerString) {
 }
 
 function createFillInTheBlanks(element) {
-    // 查找 OL 列表：可能是当前元素本身，也可能是下一个兄弟元素
+    // 查找 OL 列表：可能在 LI 内部、是 OL 本身、或是下一个兄弟元素
     let list = null;
     if (element.tagName === 'OL') {
         list = element;
+    } else if (element.tagName === 'LI') {
+        // 如果是 LI 元素，查找内部的 OL
+        list = element.querySelector('ol');
     } else {
         list = element.nextElementSibling;
     }
 
     if (list && list.tagName === 'OL') {
-        Array.from(list.children).forEach((li, index) => {
+        let inputIndex = 0; // 全局计数器，为每个输入框分配唯一索引
+        Array.from(list.children).forEach((li) => {
             // 替换任意数量的下划线，宽度根据下划线数量动态调整
             li.innerHTML = li.innerHTML.replace(/_{2,}/g, (match) => {
                 const width = Math.max(100, match.length * 12); // 每个下划线约12px
+                const currentIndex = inputIndex++; // 使用当前索引并递增
                 return `<input type="text"
                     class="exercise-input border-2 border-blue-300 rounded px-3 py-1 focus:border-blue-500 focus:outline-none bg-white"
                     data-exercise="fill"
-                    data-index="${index}"
+                    data-index="${currentIndex}"
                     style="width: ${width}px; min-width: 100px; display: inline-block;"
                     placeholder="填写答案">`;
             });
         });
-        console.log(`✓ 创建了 ${list.children.length} 个填空题输入框`);
-        return list;
+        console.log(`✓ 创建了 ${inputIndex} 个填空题输入框`);
+
+        // 如果原始元素是 LI，返回 LI 以便循环继续到下一个 LI
+        return element.tagName === 'LI' ? element : list;
     }
     console.warn('未找到填空题列表', element.tagName);
     return element;
 }
 
 function createMultipleChoice(element) {
-    // 查找 OL 列表：可能是当前元素本身，也可能是下一个兄弟元素
+    // 查找 OL 列表：可能在 LI 内部、是 OL 本身、或是下一个兄弟元素
     let list = null;
     if (element.tagName === 'OL') {
         list = element;
+    } else if (element.tagName === 'LI') {
+        // 如果是 LI 元素，查找内部的 OL
+        list = element.querySelector('ol');
     } else {
         list = element.nextElementSibling;
     }
@@ -279,17 +289,22 @@ function createMultipleChoice(element) {
             `);
         });
         console.log(`✓ 创建了 ${list.children.length} 个选择题`);
-        return list;
+
+        // 如果原始元素是 LI，返回 LI 以便循环继续到下一个 LI
+        return element.tagName === 'LI' ? element : list;
     }
     console.warn('未找到选择题列表', element.tagName);
     return element;
 }
 
 function createMatching(element) {
-    // 查找表格：可能在当前元素后面（如果是 OL 或 P）
+    // 查找表格：可能在当前元素内部（LI）或后面
     let table = null;
     if (element.tagName === 'TABLE') {
         table = element;
+    } else if (element.tagName === 'LI') {
+        // 如果是 LI 元素，表格可能在其内部
+        table = element.querySelector('table');
     } else if (element.tagName === 'OL') {
         // OL 后面可能直接是表格
         table = element.nextElementSibling;
@@ -297,7 +312,7 @@ function createMatching(element) {
         table = element.nextElementSibling;
     }
 
-    console.log('匹配题查找表格:', element.tagName, '下一个元素:', table?.tagName);
+    console.log('匹配题查找表格:', element.tagName, '找到表格:', !!table, '表格标签:', table?.tagName);
 
     if (table && table.tagName === 'TABLE') {
         table.id = "matching-exercise";
@@ -367,7 +382,10 @@ function createMatching(element) {
         });
 
         console.log(`✓ 创建了匹配题（${rows.length - 1} 行），已添加点击事件`);
-        return table;
+
+        // 如果原始元素是 LI，返回 LI 以便循环继续到下一个 LI
+        // 否则返回 table
+        return element.tagName === 'LI' ? element : table;
     }
     console.warn('未找到匹配题表格，当前元素:', element.tagName, '下一个:', element.nextElementSibling?.tagName);
     return element;
@@ -448,8 +466,18 @@ async function checkAllAnswers() {
     document.querySelectorAll('[data-exercise="fill"]').forEach(input => {
         totalQuestions++;
         const userInput = input.value.trim().toLowerCase();
-        const correctAnswer = (correctAnswers.fill[input.dataset.index] || '').toLowerCase();
-        const isCorrect = userInput === correctAnswer;
+        const correctAnswerRaw = correctAnswers.fill[input.dataset.index];
+
+        // 如果没有正确答案，跳过（不计分）
+        if (!correctAnswerRaw) {
+            console.warn(`填空题 ${input.dataset.index}: 没有找到正确答案`);
+            totalQuestions--; // 不计入总题数
+            return;
+        }
+
+        const correctAnswer = correctAnswerRaw.toLowerCase();
+        // 只有当用户输入非空且匹配时才算正确
+        const isCorrect = userInput !== '' && userInput === correctAnswer;
         if (isCorrect) correctCount++;
         input.classList.toggle('correct', isCorrect);
         input.classList.toggle('incorrect', !isCorrect);
