@@ -111,17 +111,19 @@ function parseForInteractivity(wrapper) {
         let element = exerciseHeader.nextElementSibling;
         let processedCount = 0;
         while (element) {
-            console.log(`检查元素: ${element.tagName}, 文本: "${element.textContent.substring(0, 30)}..."`);
+            const text = element.textContent.trim();
+            console.log(`检查元素: ${element.tagName}, 文本: "${text.substring(0, 30)}..."`);
 
-            if (element.tagName === 'P' && element.textContent.startsWith('1. 填空题')) {
+            // 检查是否包含关键词（不依赖具体格式）
+            if (text.includes('填空题')) {
                 console.log('→ 处理填空题');
                 element = createFillInTheBlanks(element);
                 processedCount++;
-            } else if (element.tagName === 'P' && element.textContent.startsWith('2. 选择题')) {
+            } else if (text.includes('选择题')) {
                 console.log('→ 处理选择题');
                 element = createMultipleChoice(element);
                 processedCount++;
-            } else if (element.tagName === 'P' && element.textContent.startsWith('3. 匹配题')) {
+            } else if (text.includes('匹配题')) {
                 console.log('→ 处理匹配题');
                 element = createMatching(element);
                 processedCount++;
@@ -171,7 +173,8 @@ function parseAnswers(answerString) {
 
         console.log('清理后的答案:', cleanString);
 
-        const parts = cleanString.split(';');
+        // 支持中文分号和英文分号
+        const parts = cleanString.split(/[;；]/);
         console.log('分割后的部分数:', parts.length);
 
         // 解析填空题答案
@@ -223,8 +226,15 @@ function parseAnswers(answerString) {
     }
 }
 
-function createFillInTheBlanks(pElement) {
-    const list = pElement.nextElementSibling;
+function createFillInTheBlanks(element) {
+    // 查找 OL 列表：可能是当前元素本身，也可能是下一个兄弟元素
+    let list = null;
+    if (element.tagName === 'OL') {
+        list = element;
+    } else {
+        list = element.nextElementSibling;
+    }
+
     if (list && list.tagName === 'OL') {
         Array.from(list.children).forEach((li, index) => {
             // 替换任意数量的下划线，宽度根据下划线数量动态调整
@@ -238,16 +248,22 @@ function createFillInTheBlanks(pElement) {
                     placeholder="填写答案">`;
             });
         });
-        pElement.parentNode.insertBefore(list, pElement.nextSibling);
         console.log(`✓ 创建了 ${list.children.length} 个填空题输入框`);
         return list;
     }
-    console.warn('未找到填空题列表');
-    return pElement;
+    console.warn('未找到填空题列表', element.tagName);
+    return element;
 }
 
-function createMultipleChoice(pElement) {
-    const list = pElement.nextElementSibling;
+function createMultipleChoice(element) {
+    // 查找 OL 列表：可能是当前元素本身，也可能是下一个兄弟元素
+    let list = null;
+    if (element.tagName === 'OL') {
+        list = element;
+    } else {
+        list = element.nextElementSibling;
+    }
+
     if (list && list.tagName === 'OL') {
         Array.from(list.children).forEach((li, index) => {
             // 替换任意数量的下划线（2个或更多）
@@ -262,12 +278,11 @@ function createMultipleChoice(pElement) {
                 </span>
             `);
         });
-        pElement.parentNode.insertBefore(list, pElement.nextSibling);
         console.log(`✓ 创建了 ${list.children.length} 个选择题`);
         return list;
     }
-    console.warn('未找到选择题列表');
-    return pElement;
+    console.warn('未找到选择题列表', element.tagName);
+    return element;
 }
 
 function createMatching(pElement) {
