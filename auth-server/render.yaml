@@ -1,0 +1,39 @@
+services:
+  # PostgreSQL 数据库
+  - type: pserv
+    name: ai-franchteacher-db
+    env: docker
+    plan: free
+    region: oregon
+    ipAllowList: []
+
+  # 认证服务器
+  - type: web
+    name: ai-franchteacher-auth
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-franchteacher-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: REFRESH_TOKEN_EXPIRES_IN
+        value: 30d
+      - key: BCRYPT_ROUNDS
+        value: 10
+      - key: ALLOWED_ORIGINS
+        sync: false
+    autoDeploy: true

@@ -2,16 +2,29 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 // 创建PostgreSQL连接池
-const pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'ai_franchteacher',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD,
-    max: 20, // 最大连接数
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-});
+// 支持 Render 的 DATABASE_URL 或本地开发的独立配置
+const pool = new Pool(
+    process.env.DATABASE_URL
+        ? {
+              connectionString: process.env.DATABASE_URL,
+              ssl: {
+                  rejectUnauthorized: false, // Render PostgreSQL 需要
+              },
+              max: 20,
+              idleTimeoutMillis: 30000,
+              connectionTimeoutMillis: 2000,
+          }
+        : {
+              host: process.env.DB_HOST || 'localhost',
+              port: process.env.DB_PORT || 5432,
+              database: process.env.DB_NAME || 'ai_franchteacher',
+              user: process.env.DB_USER || 'postgres',
+              password: process.env.DB_PASSWORD,
+              max: 20,
+              idleTimeoutMillis: 30000,
+              connectionTimeoutMillis: 2000,
+          }
+);
 
 // 测试数据库连接
 pool.on('connect', () => {
