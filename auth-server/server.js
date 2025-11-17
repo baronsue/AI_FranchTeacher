@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const { pool } = require('./config/database');
@@ -136,39 +138,104 @@ app.use((err, req, res, next) => {
 });
 
 // ============================================
+// 数据库初始化
+// ============================================
+
+async function initializeDatabase() {
+    try {
+        // 检查 users 表是否存在
+        const checkTable = await pool.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = 'users'
+            );
+        `);
+
+        if (checkTable.rows[0].exists) {
+            console.log('✅ 数据库表已存在，跳过初始化');
+            return;
+        }
+
+        console.log('📄 数据库表不存在，开始初始化...');
+
+        // 读取并执行初始化 SQL
+        const sqlPath = path.join(__dirname, '../database/init.sql');
+        const sql = fs.readFileSync(sqlPath, 'utf8');
+
+        // 执行 SQL
+        await pool.query(sql);
+
+        console.log('✅ 数据库初始化成功！');
+
+        // 验证表创建
+        const result = await pool.query(`
+            SELECT tablename
+            FROM pg_tables
+            WHERE schemaname = 'public'
+            ORDER BY tablename
+        `);
+
+        console.log(`📊 已创建 ${result.rows.length} 个表:`, result.rows.map(r => r.tablename).join(', '));
+    } catch (error) {
+        console.error('❌ 数据库初始化失败:', error.message);
+        // 不退出进程，表可能已经存在
+        console.log('⚠️  继续启动服务器...');
+    }
+}
+
+// ============================================
 // 启动服务器
 // ============================================
 
-const server = app.listen(PORT, () => {
-    console.log('===========================================');
-    console.log(`🚀 认证服务器启动成功`);
-    console.log(`📡 端口: ${PORT}`);
-    console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🔗 健康检查: http://localhost:${PORT}/health`);
-    console.log('===========================================');
-});
+async function startServer() {
+    // 初始化数据库
+    await initializeDatabase();
+
+    // 启动 HTTP 服务器
+    const server = app.listen(PORT, () => {
+        console.log('===========================================');
+        console.log(`🚀 认证服务器启动成功`);
+        console.log(`📡 端口: ${PORT}`);
+        console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);
+        console.log(`🔗 健康检查: http://localhost:${PORT}/health`);
+        console.log('===========================================');
+    });
+
+    return server;
+}
+
+// 调用启动函数并保存 server 引用
+let serverInstance;
+startServer()
+    .then(server => {
+        serverInstance = server;
+    })
+    .catch(err => {
+        console.error('启动失败:', err);
+        process.exit(1);
+    });
 
 // 优雅关闭
-process.on('SIGTERM', () => {
-    console.log('收到SIGTERM信号，开始优雅关闭...');
-    server.close(() => {
-        console.log('HTTP服务器已关闭');
+const gracefulShutdown = (signal) => {
+    console.log(`收到${signal}信号，开始优雅关闭...`);
+    if (serverInstance) {
+        serverInstance.close(() => {
+            console.log('HTTP服务器已关闭');
+            pool.end(() => {
+                console.log('数据库连接池已关闭');
+                process.exit(0);
+            });
+        });
+    } else {
         pool.end(() => {
             console.log('数据库连接池已关闭');
             process.exit(0);
         });
-    });
-});
+    }
+};
 
-process.on('SIGINT', () => {
-    console.log('收到SIGINT信号，开始优雅关闭...');
-    server.close(() => {
-        console.log('HTTP服务器已关闭');
-        pool.end(() => {
-            console.log('数据库连接池已关闭');
-            process.exit(0);
-        });
-    });
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 module.exports = app;
