@@ -2,6 +2,20 @@
 
 import { authService } from './auth_service.js';
 
+// 安全地从localStorage解析JSON
+function safeParseJSON(key, defaultValue = null) {
+    try {
+        const value = localStorage.getItem(key);
+        if (!value) return defaultValue;
+        return JSON.parse(value);
+    } catch (error) {
+        console.error(`解析localStorage中的${key}失败:`, error);
+        // 清除损坏的数据
+        localStorage.removeItem(key);
+        return defaultValue;
+    }
+}
+
 class UserDataService {
     constructor() {
         this.syncEnabled = true;
@@ -298,8 +312,10 @@ class UserDataService {
                 const key = localStorage.key(i);
                 if (key.startsWith('aurelie_app_course_')) {
                     const courseId = key.replace('aurelie_app_course_', '');
-                    const progressData = JSON.parse(localStorage.getItem(key));
-                    await this.saveCourseProgress(courseId, progressData.progress);
+                    const progressData = safeParseJSON(key, null);
+                    if (progressData && progressData.progress) {
+                        await this.saveCourseProgress(courseId, progressData.progress);
+                    }
                 }
             }
 
@@ -308,13 +324,15 @@ class UserDataService {
                 const key = localStorage.key(i);
                 if (key.startsWith('aurelie_app_exercise_')) {
                     const exerciseId = key.replace('aurelie_app_exercise_', '');
-                    const exerciseData = JSON.parse(localStorage.getItem(key));
-                    await this.saveExercise(
-                        exerciseId,
-                        exerciseData.answers,
-                        exerciseData.score || 0,
-                        exerciseData.completed || false
-                    );
+                    const exerciseData = safeParseJSON(key, null);
+                    if (exerciseData) {
+                        await this.saveExercise(
+                            exerciseId,
+                            exerciseData.answers || {},
+                            exerciseData.score || 0,
+                            exerciseData.completed || false
+                        );
+                    }
                 }
             }
 

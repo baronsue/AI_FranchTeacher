@@ -426,17 +426,22 @@ function parseAnswers(answerString) {
     const parts = cleanString.split(';');
 
     if (parts[0]) {
-        correctAnswers.fill = parts[0].match(new RegExp('[a-z]+\\.\\s*\\w+', 'g')).map(s => s.split('.')[1].trim());
+        const fillMatches = parts[0].match(new RegExp('[a-z]+\\.\\s*\\w+', 'g'));
+        correctAnswers.fill = fillMatches ? fillMatches.map(s => s.split('.')[1].trim()) : [];
     }
     if (parts[1]) {
-        correctAnswers.choice = parts[1].match(new RegExp('[a-z]+\\.\\s*\\w+', 'g')).map(s => s.split('.')[1].trim());
+        const choiceMatches = parts[1].match(new RegExp('[a-z]+\\.\\s*\\w+', 'g'));
+        correctAnswers.choice = choiceMatches ? choiceMatches.map(s => s.split('.')[1].trim()) : [];
     }
     if (parts[2]) {
         correctAnswers.match = {};
-        parts[2].match(new RegExp('\\d-[A-Z]', 'g')).forEach(m => {
-            const [num, letter] = m.split('-');
-            correctAnswers.match[num] = letter;
-        });
+        const matchMatches = parts[2].match(new RegExp('\\d-[A-Z]', 'g'));
+        if (matchMatches) {
+            matchMatches.forEach(m => {
+                const [num, letter] = m.split('-');
+                correctAnswers.match[num] = letter;
+            });
+        }
     }
 }
 

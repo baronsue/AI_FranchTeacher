@@ -19,12 +19,28 @@ ensureApiKeyIsPresent(qwenApiKey);
 app.use(
     cors({
         origin: (origin, callback) => {
-            if (!origin || allowedOrigins.includes(origin)) {
+            // 在开发环境中，允许无origin的请求（如Postman、curl等）
+            // 在生产环境中，必须有origin且在白名单中
+            const isDevelopment = process.env.NODE_ENV !== 'production';
+
+            if (!origin) {
+                if (isDevelopment) {
+                    console.log('[Qwen Proxy] Allowing request without origin in development mode');
+                    return callback(null, true);
+                } else {
+                    console.warn('[Qwen Proxy] Blocked request without origin in production mode');
+                    return callback(new Error('Origin header is required'));
+                }
+            }
+
+            if (allowedOrigins.includes(origin)) {
                 return callback(null, true);
             }
+
             console.warn(`[Qwen Proxy] Blocked origin: ${origin}`);
             return callback(new Error('Origin not allowed'));
         },
+        credentials: true,  // 允许携带凭证
     })
 );
 

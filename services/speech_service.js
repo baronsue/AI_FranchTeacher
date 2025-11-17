@@ -285,13 +285,19 @@ function speakSingleLanguage(text, options = {}) {
     if (onstart) utterance.onstart = onstart;
     if (onend) utterance.onend = onend;
 
-    synth.speak(utterance);
+    try {
+        synth.speak(utterance);
+    } catch (error) {
+        console.error("Error speaking:", error);
+        if (onend) onend();
+    }
 }
 
 export function speak(text, options = {}) {
-    if (!synth) {
+    // 检查浏览器支持
+    if (!synth || !('speechSynthesis' in window)) {
         console.error("Speech Synthesis not supported.");
-        return;
+        return false;
     }
 
     // 等待语音加载
@@ -299,8 +305,13 @@ export function speak(text, options = {}) {
         getVoices();
     }
 
-    // 取消之前的朗读
-    synth.cancel();
+    try {
+        // 取消之前的朗读
+        synth.cancel();
+    } catch (error) {
+        console.error("Error canceling speech:", error);
+        return false;
+    }
 
     // 兼容旧的调用方式：speak(text, lang)
     const config = typeof options === 'string' ? { lang: options } : options;

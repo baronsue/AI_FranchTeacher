@@ -7,11 +7,48 @@ const API_BASE_URL = window.location.hostname === 'baronsue.github.io'
 
 console.log('[Auth] API Base URL:', API_BASE_URL);
 
+// 安全地从localStorage解析JSON
+function safeParseJSON(key, defaultValue = null) {
+    try {
+        const value = localStorage.getItem(key);
+        if (!value) return defaultValue;
+        return JSON.parse(value);
+    } catch (error) {
+        console.error(`解析localStorage中的${key}失败:`, error);
+        // 清除损坏的数据
+        localStorage.removeItem(key);
+        return defaultValue;
+    }
+}
+
+// 带超时控制的fetch
+async function fetchWithTimeout(url, options = {}, timeout = 30000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error(`请求超时（${timeout}ms）`);
+        }
+        throw error;
+    }
+}
+
 class AuthService {
     constructor() {
         this.accessToken = localStorage.getItem('access_token');
         this.refreshToken = localStorage.getItem('refresh_token');
-        this.user = JSON.parse(localStorage.getItem('user') || 'null');
+        this.user = safeParseJSON('user', null);
+        // Token刷新锁，防止并发刷新
+        this.refreshPromise = null;
     }
 
     // ============================================
@@ -23,7 +60,7 @@ class AuthService {
      */
     async register(username, email, password, displayName = '') {
         try {
-            const response = await fetch(`${API_BASE_URL}/auth/register`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -56,7 +93,7 @@ class AuthService {
      */
     async login(username, password) {
         try {
-            const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            const response = await fetchWithTimeout(`${API_BASE_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -85,7 +122,7 @@ class AuthService {
     async logout() {
         try {
             if (this.accessToken) {
-                await fetch(`${API_BASE_URL}/auth/logout`, {
+                await fetchWithTimeout(`${API_BASE_URL}/auth/logout`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -105,42 +142,59 @@ class AuthService {
     }
 
     /**
-     * 刷新访问令牌
+     * 刷新访问令牌（带锁机制防止并发刷新）
      */
     async refreshAccessToken() {
-        try {
-            if (!this.refreshToken) {
-                throw new Error('没有刷新令牌');
-            }
+        // 如果已经有刷新操作在进行，等待它完成
+        if (this.refreshPromise) {
+            console.log('[Auth] 等待现有的token刷新操作完成');
+            return await this.refreshPromise;
+        }
 
-            const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    refreshToken: this.refreshToken
-                })
-            });
+        // 创建新的刷新Promise
+        this.refreshPromise = (async () => {
+            try {
+                if (!this.refreshToken) {
+                    throw new Error('没有刷新令牌');
+                }
 
-            const data = await response.json();
+                console.log('[Auth] 开始刷新token');
+                const response = await fetchWithTimeout(`${API_BASE_URL}/auth/refresh`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        refreshToken: this.refreshToken
+                    })
+                });
 
-            if (data.success) {
-                this.accessToken = data.data.accessToken;
-                localStorage.setItem('access_token', this.accessToken);
-                return true;
-            } else {
-                // 刷新令牌无效，需要重新登录
+                const data = await response.json();
+
+                if (data.success) {
+                    this.accessToken = data.data.accessToken;
+                    localStorage.setItem('access_token', this.accessToken);
+                    console.log('[Auth] Token刷新成功');
+                    return true;
+                } else {
+                    // 刷新令牌无效，需要重新登录
+                    console.log('[Auth] Token刷新失败，清除认证数据');
+                    this.clearAuthData();
+                    window.location.hash = '#/login';
+                    return false;
+                }
+            } catch (error) {
+                console.error('[Auth] 刷新令牌错误:', error);
                 this.clearAuthData();
                 window.location.hash = '#/login';
                 return false;
+            } finally {
+                // 清除刷新Promise，允许下次刷新
+                this.refreshPromise = null;
             }
-        } catch (error) {
-            console.error('刷新令牌错误:', error);
-            this.clearAuthData();
-            window.location.hash = '#/login';
-            return false;
-        }
+        })();
+
+        return await this.refreshPromise;
     }
 
     /**
@@ -206,7 +260,7 @@ class AuthService {
         };
 
         try {
-            const response = await fetch(url, mergedOptions);
+            const response = await fetchWithTimeout(url, mergedOptions);
             const data = await response.json();
 
             // 如果令牌过期，尝试刷新
@@ -215,7 +269,7 @@ class AuthService {
                 if (refreshed) {
                     // 重新发送请求
                     mergedOptions.headers['Authorization'] = `Bearer ${this.accessToken}`;
-                    const retryResponse = await fetch(url, mergedOptions);
+                    const retryResponse = await fetchWithTimeout(url, mergedOptions);
                     return await retryResponse.json();
                 }
             }
