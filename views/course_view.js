@@ -285,37 +285,71 @@ function createMultipleChoice(element) {
     return element;
 }
 
-function createMatching(pElement) {
-    const table = pElement.nextElementSibling;
+function createMatching(element) {
+    // 查找表格：可能在当前元素后面（如果是 OL 或 P）
+    let table = null;
+    if (element.tagName === 'TABLE') {
+        table = element;
+    } else if (element.tagName === 'OL') {
+        // OL 后面可能直接是表格
+        table = element.nextElementSibling;
+    } else {
+        table = element.nextElementSibling;
+    }
+
+    console.log('匹配题查找表格:', element.tagName, '下一个元素:', table?.tagName);
+
     if (table && table.tagName === 'TABLE') {
         table.id = "matching-exercise";
         const rows = table.querySelectorAll('tr');
+        console.log(`找到匹配题表格，共 ${rows.length} 行`);
+
         rows.forEach((row, rowIndex) => {
             if (rowIndex > 0) { // Skip header
                 const cells = row.querySelectorAll('td');
-                if (cells.length === 3) {
-                    cells[0].dataset.matchId = cells[0].textContent.match(new RegExp('\\d+'))[0];
-                    cells[0].classList.add('cursor-pointer', 'match-source');
-                    cells[2].dataset.matchId = cells[2].textContent.match(new RegExp('[A-Z]+'))[0];
-                    cells[2].classList.add('cursor-pointer', 'match-target');
+                console.log(`行 ${rowIndex}: ${cells.length} 个单元格`);
+                if (cells.length >= 2) {
+                    // 第一列（左侧）是源
+                    const firstCellMatch = cells[0].textContent.match(/\d+/);
+                    if (firstCellMatch) {
+                        cells[0].dataset.matchId = firstCellMatch[0];
+                        cells[0].classList.add('cursor-pointer', 'match-source', 'hover:bg-blue-100', 'p-2', 'border');
+                        console.log(`  源单元格: ID=${firstCellMatch[0]}`);
+                    }
+
+                    // 最后一列是目标（可能是第2列或第3列）
+                    const targetCell = cells[cells.length - 1];
+                    const targetCellMatch = targetCell.textContent.match(/[A-Z]/);
+                    if (targetCellMatch) {
+                        targetCell.dataset.matchId = targetCellMatch[0];
+                        targetCell.classList.add('cursor-pointer', 'match-target', 'hover:bg-green-100', 'p-2', 'border');
+                        console.log(`  目标单元格: ID=${targetCellMatch[0]}`);
+                    }
+
                     row.dataset.rowId = rowIndex;
                 }
             }
         });
-        
+
         let selectedSource = null;
         table.addEventListener('click', e => {
             const source = e.target.closest('.match-source');
             const target = e.target.closest('.match-target');
-            
+
+            console.log('点击事件:', {source: !!source, target: !!target, selectedSource: !!selectedSource});
+
             if (source) {
+                // 选择源
                 if(selectedSource) selectedSource.classList.remove('bg-blue-200');
                 selectedSource = source;
                 selectedSource.classList.add('bg-blue-200');
+                console.log('已选择源:', selectedSource.dataset.matchId);
             } else if (target && selectedSource) {
+                // 连接源和目标
                 const sourceId = selectedSource.dataset.matchId;
                 const rowId = selectedSource.closest('tr').dataset.rowId;
-                
+
+                console.log(`连接: 源=${sourceId} -> 目标=${target.dataset.matchId}`);
 
                 const existingSelection = document.querySelector(`[data-match-row="${rowId}"]`);
                 if(existingSelection) {
@@ -325,18 +359,18 @@ function createMatching(pElement) {
 
                 target.classList.add('bg-green-200', 'text-green-800', 'font-bold');
                 target.dataset.matchRow = rowId;
-                
+
                 selectedSource.dataset.userAnswer = target.dataset.matchId;
                 selectedSource.classList.remove('bg-blue-200');
                 selectedSource = null;
             }
         });
-        pElement.parentNode.insertBefore(table, pElement.nextSibling);
-        console.log(`✓ 创建了匹配题（${rows.length - 1} 行）`);
+
+        console.log(`✓ 创建了匹配题（${rows.length - 1} 行），已添加点击事件`);
         return table;
     }
-    console.warn('未找到匹配题表格');
-    return pElement;
+    console.warn('未找到匹配题表格，当前元素:', element.tagName, '下一个:', element.nextElementSibling?.tagName);
+    return element;
 }
 
 function collectUserAnswers() {
@@ -413,10 +447,13 @@ async function checkAllAnswers() {
     // 检查填空题
     document.querySelectorAll('[data-exercise="fill"]').forEach(input => {
         totalQuestions++;
-        const isCorrect = input.value.trim().toLowerCase() === correctAnswers.fill[input.dataset.index];
+        const userInput = input.value.trim().toLowerCase();
+        const correctAnswer = (correctAnswers.fill[input.dataset.index] || '').toLowerCase();
+        const isCorrect = userInput === correctAnswer;
         if (isCorrect) correctCount++;
         input.classList.toggle('correct', isCorrect);
         input.classList.toggle('incorrect', !isCorrect);
+        console.log(`填空题 ${input.dataset.index}: 用户输入="${userInput}", 正确答案="${correctAnswer}", 结果=${isCorrect}`);
     });
 
     // 检查选择题
