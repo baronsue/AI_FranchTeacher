@@ -251,15 +251,14 @@ function parseAnswers(answerString) {
         if (parts[2]) {
             const matchMatches = parts[2].match(/\d-[A-Z]/g);
             if (matchMatches && matchMatches.length > 0) {
-                correctAnswers.match = {};
+                // 追加到现有答案对象，而不是覆盖
                 matchMatches.forEach(m => {
                     const [num, letter] = m.split('-');
                     correctAnswers.match[num] = letter;
                 });
-                console.log('✓ 匹配题答案:', correctAnswers.match);
+                console.log('✓ 匹配题答案（累积）:', correctAnswers.match);
             } else {
                 console.warn('未找到匹配题答案');
-                correctAnswers.match = {};
             }
         }
     } catch (error) {
@@ -322,20 +321,23 @@ function createMultipleChoice(element) {
     }
 
     if (list && list.tagName === 'OL') {
-        Array.from(list.children).forEach((li, index) => {
+        let localCount = 0;
+        Array.from(list.children).forEach((li) => {
             // 替换任意数量的下划线（2个或更多）
+            const currentIndex = globalInputIndex++; // 使用全局索引
+            localCount++;
             li.innerHTML = li.innerHTML.replace(/_{2,}/g, `
-                <span class="font-semibold mx-2" data-exercise="choice" data-index="${index}">
+                <span class="font-semibold mx-2" data-exercise="choice" data-index="${currentIndex}">
                     <label class="mr-3 cursor-pointer hover:bg-blue-50 p-1 rounded">
-                        <input type="radio" name="choice-${index}" value="un" class="mr-1"> un
+                        <input type="radio" name="choice-${currentIndex}" value="un" class="mr-1"> un
                     </label>
                     <label class="cursor-pointer hover:bg-blue-50 p-1 rounded">
-                        <input type="radio" name="choice-${index}" value="une" class="mr-1"> une
+                        <input type="radio" name="choice-${currentIndex}" value="une" class="mr-1"> une
                     </label>
                 </span>
             `);
         });
-        console.log(`✓ 创建了 ${list.children.length} 个选择题`);
+        console.log(`✓ 创建了 ${localCount} 个选择题（全局索引: ${globalInputIndex - localCount} - ${globalInputIndex - 1}）`);
 
         // 如果原始元素是 LI，返回 LI 以便循环继续到下一个 LI
         return element.tagName === 'LI' ? element : list;
@@ -540,11 +542,23 @@ async function checkAllAnswers() {
         resultSpan.className = 'ml-2 font-bold';
         if (!span.nextElementSibling) span.parentNode.appendChild(resultSpan);
 
+        // 检查是否有对应的正确答案
+        const correctAnswerRaw = correctAnswers.choice[index];
+        if (!correctAnswerRaw) {
+            console.warn(`选择题 ${index}: 没有找到正确答案`);
+            totalQuestions--; // 不计入总题数
+            return;
+        }
+
         if (selectedRadio) {
-            const isCorrect = selectedRadio.value === correctAnswers.choice[index];
+            // 转为小写比较，支持不同大小写
+            const userAnswer = selectedRadio.value.toLowerCase();
+            const correctAnswer = correctAnswerRaw.toLowerCase();
+            const isCorrect = userAnswer === correctAnswer;
             if (isCorrect) correctCount++;
             resultSpan.textContent = isCorrect ? '✓' : '✗';
             resultSpan.className = isCorrect ? 'answer-correct' : 'answer-incorrect';
+            console.log(`选择题 ${index}: 用户选择="${userAnswer}", 正确答案="${correctAnswer}", 结果=${isCorrect}`);
         } else {
             resultSpan.textContent = '?';
             resultSpan.className = 'answer-incorrect';
@@ -553,11 +567,18 @@ async function checkAllAnswers() {
 
     // 检查匹配题
     document.querySelectorAll('.match-source').forEach(source => {
-        totalQuestions++;
         const sourceId = source.dataset.matchId;
-        const userAnswer = source.dataset.userAnswer;
         const correctAnswer = correctAnswers.match[sourceId];
-        const isCorrect = userAnswer === correctAnswer;
+
+        // 如果没有正确答案，跳过（不计分）
+        if (!correctAnswer) {
+            console.warn(`匹配题 ${sourceId}: 没有找到正确答案`);
+            return;
+        }
+
+        totalQuestions++;
+        const userAnswer = source.dataset.userAnswer;
+        const isCorrect = userAnswer && userAnswer === correctAnswer;
         if (isCorrect) correctCount++;
 
         const resultSpan = source.nextElementSibling || document.createElement('span');
@@ -568,6 +589,7 @@ async function checkAllAnswers() {
         }
         resultSpan.className = isCorrect ? 'answer-correct font-bold text-center' : 'answer-incorrect font-bold text-center';
         resultSpan.textContent = isCorrect ? '✓' : '✗';
+        console.log(`匹配题 ${sourceId}: 用户答案="${userAnswer || '未答'}", 正确答案="${correctAnswer}", 结果=${isCorrect}`);
     });
 
     // 计算分数百分比
