@@ -159,25 +159,67 @@ function parseForInteractivity(wrapper) {
 }
 
 function parseAnswers(answerString) {
+    try {
+        console.log('开始解析答案:', answerString.substring(0, 100));
 
-    const cleanString = answerString.replace('答案：', '').replace('(', '').replace(')', '').trim();
-    const parts = cleanString.split(';');
-    
+        // 清理答案字符串：移除括号、"答案："和可能的单元名称前缀
+        let cleanString = answerString
+            .replace(/答案[：:]/g, '')
+            .replace(/[()（）]/g, '')
+            .replace(/Unité\s+\d+[：:]/g, '')  // 移除 "Unité 2：" 这样的前缀
+            .trim();
 
-    if (parts[0]) {
-        correctAnswers.fill = parts[0].match(new RegExp('[a-z]+\\.\\s*\\w+', 'g')).map(s => s.split('.')[1].trim());
-    }
+        console.log('清理后的答案:', cleanString);
 
-    if (parts[1]) {
-        correctAnswers.choice = parts[1].match(new RegExp('[a-z]+\\.\\s*\\w+', 'g')).map(s => s.split('.')[1].trim());
-    }
+        const parts = cleanString.split(';');
+        console.log('分割后的部分数:', parts.length);
 
-    if (parts[2]) {
-        correctAnswers.match = {};
-        parts[2].match(new RegExp('\\d-[A-Z]', 'g')).forEach(m => {
-            const [num, letter] = m.split('-');
-            correctAnswers.match[num] = letter;
-        });
+        // 解析填空题答案
+        if (parts[0]) {
+            const fillMatches = parts[0].match(/[a-z]+\.\s*[\wé]+/gi);
+            if (fillMatches && fillMatches.length > 0) {
+                correctAnswers.fill = fillMatches.map(s => s.split('.')[1].trim());
+                console.log('✓ 填空题答案:', correctAnswers.fill);
+            } else {
+                console.warn('未找到填空题答案');
+                correctAnswers.fill = [];
+            }
+        }
+
+        // 解析选择题答案
+        if (parts[1]) {
+            const choiceMatches = parts[1].match(/[a-z]+\.\s*[\wé]+/gi);
+            if (choiceMatches && choiceMatches.length > 0) {
+                correctAnswers.choice = choiceMatches.map(s => s.split('.')[1].trim());
+                console.log('✓ 选择题答案:', correctAnswers.choice);
+            } else {
+                console.warn('未找到选择题答案');
+                correctAnswers.choice = [];
+            }
+        }
+
+        // 解析匹配题答案
+        if (parts[2]) {
+            const matchMatches = parts[2].match(/\d-[A-Z]/g);
+            if (matchMatches && matchMatches.length > 0) {
+                correctAnswers.match = {};
+                matchMatches.forEach(m => {
+                    const [num, letter] = m.split('-');
+                    correctAnswers.match[num] = letter;
+                });
+                console.log('✓ 匹配题答案:', correctAnswers.match);
+            } else {
+                console.warn('未找到匹配题答案');
+                correctAnswers.match = {};
+            }
+        }
+    } catch (error) {
+        console.error('解析答案时出错:', error);
+        console.error('答案字符串:', answerString);
+        // 设置默认值避免后续错误
+        correctAnswers.fill = correctAnswers.fill || [];
+        correctAnswers.choice = correctAnswers.choice || [];
+        correctAnswers.match = correctAnswers.match || {};
     }
 }
 
