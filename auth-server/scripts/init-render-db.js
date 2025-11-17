@@ -32,50 +32,82 @@ async function initDatabase() {
     }
 
     const pool = new Pool(poolConfig);
+    let client;
 
     try {
+        // 获取一个客户端连接
+        console.log('📡 正在连接数据库...');
+        client = await pool.connect();
+        console.log('✅ 连接成功！');
+
         // 读取 SQL 初始化脚本
         const sqlPath = path.join(__dirname, '../../database/init.sql');
         const sql = fs.readFileSync(sqlPath, 'utf8');
 
         console.log('📄 执行初始化 SQL 脚本...');
+        console.log('⏳ 这可能需要几秒钟...');
 
-        // 执行 SQL（分割成单独的语句）
-        const statements = sql
-            .split(';')
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0);
+        // 直接执行整个 SQL 文件（PostgreSQL 支持多语句）
+        try {
+            await client.query(sql);
+            console.log('✅ SQL 脚本执行成功！');
+        } catch (error) {
+            // 如果整体执行失败，可能是因为某些对象已存在，尝试逐条执行
+            console.log('⚠️  整体执行失败，尝试逐条执行...');
 
-        for (const statement of statements) {
-            try {
-                await pool.query(statement);
-            } catch (error) {
-                // 忽略 "already exists" 错误
-                if (!error.message.includes('already exists')) {
-                    console.error('SQL 错误:', error.message);
+            // 更智能的分割：按照 ; 分割，但忽略函数体内的分号
+            const statements = sql
+                .split(/;\s*$/m) // 按行尾的分号分割
+                .map(s => s.trim())
+                .filter(s => s.length > 0 && !s.startsWith('--'));
+
+            let successCount = 0;
+            let skipCount = 0;
+
+            for (let i = 0; i < statements.length; i++) {
+                const statement = statements[i];
+                try {
+                    await client.query(statement);
+                    successCount++;
+                    process.stdout.write(`\r✓ 执行进度: ${i + 1}/${statements.length}`);
+                } catch (error) {
+                    // 忽略 "already exists" 错误
+                    if (error.message.includes('already exists')) {
+                        skipCount++;
+                    } else {
+                        console.error(`\n⚠️  语句执行警告: ${error.message.substring(0, 100)}`);
+                    }
                 }
             }
+            console.log(`\n✅ 完成: ${successCount} 成功, ${skipCount} 已存在`);
         }
 
-        console.log('✅ 数据库初始化成功！');
-
         // 验证表创建
-        const result = await pool.query(`
+        console.log('\n📊 验证数据库表...');
+        const result = await client.query(`
             SELECT tablename
             FROM pg_tables
             WHERE schemaname = 'public'
             ORDER BY tablename
         `);
 
-        console.log('📊 已创建的表:');
-        result.rows.forEach((row) => {
-            console.log(`  - ${row.tablename}`);
-        });
+        if (result.rows.length === 0) {
+            console.log('⚠️  警告: 未找到任何表！');
+        } else {
+            console.log(`✅ 找到 ${result.rows.length} 个表:`);
+            result.rows.forEach((row) => {
+                console.log(`  ✓ ${row.tablename}`);
+            });
+        }
 
+        client.release();
         await pool.end();
+        console.log('\n🎉 数据库初始化完成！');
         process.exit(0);
     } catch (error) {
-        console.error('❌ 数据库初始化失败:', error);
+        console.error('\n❌ 数据库初始化失败:', error.message);
+        console.error('详细错误:', error);
+        if (client) client.release();
         await pool.end();
         process.exit(1);
     }
