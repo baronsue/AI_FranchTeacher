@@ -1,6 +1,11 @@
 import { authService } from './services/auth_service.js';
 import { userDataService } from './services/user_data_service.js';
 
+// 防止重定向循环的标志
+let isRedirecting = false;
+let redirectCount = 0;
+const MAX_REDIRECTS = 3;
+
 const dynamicLoaders = {
     login: {
         load: () => import('./views/auth_view.js'),
@@ -39,11 +44,29 @@ export async function navigateTo(view, container, routes = {}) {
     window.scrollTo(0, 0);
 
     try {
+        // 检测重定向循环
+        if (isRedirecting) {
+            redirectCount++;
+            if (redirectCount > MAX_REDIRECTS) {
+                console.error('检测到重定向循环，停止重定向');
+                isRedirecting = false;
+                redirectCount = 0;
+                container.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow-md">
+                    <h1 class="text-2xl font-bold text-red-600">导航错误</h1>
+                    <p class="text-gray-600 mt-2">检测到重定向循环，请刷新页面重试。</p>
+                </div>`;
+                return;
+            }
+        } else {
+            redirectCount = 0;
+        }
+
         container.innerHTML = '';
 
         const registeredRenderer = routes[view];
         if (typeof registeredRenderer === 'function') {
             await registeredRenderer(container);
+            isRedirecting = false;
             return;
         }
 
@@ -55,15 +78,21 @@ export async function navigateTo(view, container, routes = {}) {
         // 认证检查
         if (loaderConfiguration.requireAuth && !authService.isAuthenticated()) {
             console.log('需要登录，跳转到登录页面');
+            isRedirecting = true;
             window.location.hash = '#/login';
             return;
         }
 
         // 如果已登录且访问登录页，跳转到dashboard
         if (view === 'login' && authService.isAuthenticated()) {
+            isRedirecting = true;
             window.location.hash = '#/dashboard';
             return;
         }
+
+        // 成功导航，重置重定向标志
+        isRedirecting = false;
+        redirectCount = 0;
 
         const renderModule = await loaderConfiguration.load();
         const renderFunction = renderModule[loaderConfiguration.exportName];
