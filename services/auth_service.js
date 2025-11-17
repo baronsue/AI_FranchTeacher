@@ -1,6 +1,11 @@
 // 认证服务 - 管理用户认证和令牌
 
-const API_BASE_URL = 'http://localhost:3002/api';
+// 自动检测环境：GitHub Pages 使用 Render 生产 URL，本地开发使用 localhost
+const API_BASE_URL = window.location.hostname === 'baronsue.github.io'
+    ? 'https://franch-teacher-proxy.onrender.com/api'
+    : 'http://localhost:3002/api';
+
+console.log('[Auth] API Base URL:', API_BASE_URL);
 
 class AuthService {
     constructor() {
