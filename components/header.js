@@ -1,3 +1,5 @@
+import { authService } from '../services/auth_service.js';
+
 function navigate(view) {
     window.dispatchEvent(new CustomEvent('navigate', { detail: { view } }));
 }
@@ -5,7 +7,10 @@ function navigate(view) {
 export function createHeader() {
     const header = document.createElement('header');
     header.className = 'bg-white shadow-md sticky top-0 z-50';
-    
+
+    const user = authService.getCurrentUser();
+    const isAuthenticated = authService.isAuthenticated();
+
     header.innerHTML = `
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-20">
@@ -26,9 +31,20 @@ export function createHeader() {
                     <i data-lucide="menu" class="w-6 h-6 text-gray-600"></i>
                 </button>
 
-                <div class="flex items-center">
-                    <span class="text-sm font-medium text-gray-600 mr-3 hidden sm:block">你的AI法语老师</span>
-                    <img class="h-12 w-12 rounded-full" src="https://r2.flowith.net/files/png/Y6F4R-ai_french_teacher_avatar_index_1@1024x1024.png" alt="Aurélie, AI老师">
+                <div class="flex items-center space-x-4">
+                    ${isAuthenticated ? `
+                        <!-- 用户信息 -->
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm font-medium text-gray-600 hidden sm:block">
+                                ${user.displayName || user.username}
+                            </span>
+                            <div class="text-2xl">${user.avatar || '🎓'}</div>
+                        </div>
+                        <!-- 登出按钮 -->
+                        <button id="logout-btn" class="text-sm text-gray-600 hover:text-red-600 font-medium transition-colors">
+                            <i data-lucide="log-out" class="w-5 h-5"></i>
+                        </button>
+                    ` : ''}
                 </div>
             </div>
         </div>
@@ -73,10 +89,20 @@ export function createHeader() {
     header.querySelector('#nav-dialogue').addEventListener('click', (e) => handleNavClick(e, 'dialogue'));
     header.querySelector('#nav-culture').addEventListener('click', (e) => handleNavClick(e, 'culture'));
 
+    // 登出按钮
+    const logoutBtn = header.querySelector('#logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            if (confirm('确定要登出吗？')) {
+                await authService.logout();
+            }
+        });
+    }
+
     // 移动端菜单切换
     const mobileMenuBtn = header.querySelector('#mobile-menu-btn');
     const mobileMenu = header.querySelector('#mobile-menu');
-    
+
     mobileMenuBtn.addEventListener('click', () => {
         mobileMenu.classList.toggle('hidden');
         const icon = mobileMenuBtn.querySelector('i');
@@ -84,7 +110,7 @@ export function createHeader() {
         icon.setAttribute('data-lucide', isOpen ? 'x' : 'menu');
         lucide.createIcons();
     });
-    
+
     // 移动端导航链接
     header.querySelectorAll('.mobile-nav-link').forEach(link => {
         link.addEventListener('click', (e) => {

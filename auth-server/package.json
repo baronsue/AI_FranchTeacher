@@ -1,0 +1,28 @@
+{
+  "name": "ai-franchteacher-auth-server",
+  "version": "1.0.0",
+  "description": "Authentication and user data management server for AI FranchTeacher",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "init-db": "node scripts/init-db.js"
+  },
+  "keywords": ["authentication", "express", "postgresql", "jwt"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
