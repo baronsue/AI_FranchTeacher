@@ -26,10 +26,16 @@ import {
     getCheckInInfo,
     recordMistake,
     getMistakes,
-    getLeaderboard,
     POINT_RULES,
     BADGES
 } from '../utils/gamification_manager.js';
+import {
+    showMistakesModal,
+    showBadgesModal,
+    showCourseCompleteModal,
+    showScoreModal,
+    showCelebration
+} from '../utils/modal_manager.js';
 
 let currentCourseId = 'lesson_1';
 let startTime = null;
@@ -42,9 +48,27 @@ const createEmptyAnswerState = () => ({
 });
 
 let correctAnswers = createEmptyAnswerState();
+let answerStatuses = createEmptyAnswerState();
+let isRestoringAnswers = false;
 
 function resetCorrectAnswers() {
     correctAnswers = createEmptyAnswerState();
+}
+
+function resetAnswerStatuses() {
+    answerStatuses = createEmptyAnswerState();
+}
+
+function initializeAnswerStatuses() {
+    answerStatuses.fill = new Array(correctAnswers.fill?.length || 0).fill(null);
+    answerStatuses.choice = new Array(correctAnswers.choice?.length || 0).fill(null);
+    answerStatuses.match = {};
+
+    if (correctAnswers.match) {
+        Object.keys(correctAnswers.match).forEach(key => {
+            answerStatuses.match[key] = null;
+        });
+    }
 }
 
 function escapeHtml(value) {
@@ -157,8 +181,12 @@ function renderCourseSidebar() {
     });
 
     // 绑定按钮事件
-    sidebar.querySelector('#show-mistakes-btn').addEventListener('click', showMistakesModal);
-    sidebar.querySelector('#show-badges-btn').addEventListener('click', showBadgesModal);
+    sidebar.querySelector('#show-mistakes-btn').addEventListener('click', () => {
+        showMistakesModal(getMistakes(false));
+    });
+    sidebar.querySelector('#show-badges-btn').addEventListener('click', () => {
+        showBadgesModal(getUserBadges(), Object.values(BADGES));
+    });
 
     return sidebar;
 }
@@ -359,6 +387,7 @@ function stopStudyTimer() {
  */
 function parseForInteractivity(wrapper, courseId) {
     resetCorrectAnswers();
+    resetAnswerStatuses();
     // 对话部分添加语音按钮
     const dialogueParagraphs = Array.from(wrapper.querySelectorAll('p')).filter(p =>
         p.textContent.includes('Aurélie:') || p.textContent.includes('Li Wei:')
@@ -408,6 +437,8 @@ function parseForInteractivity(wrapper, courseId) {
             answerComment.remove();
         }
 
+        initializeAnswerStatuses();
+
         let element = exerciseHeader.nextElementSibling;
         while (element) {
             if (element.tagName === 'P' && element.textContent.startsWith('1. 填空题')) {
@@ -422,14 +453,10 @@ function parseForInteractivity(wrapper, courseId) {
             element = element.nextElementSibling;
         }
 
-        // 添加检查答案按钮
+        // 答案操作按钮（仅保留重置）
         const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'not-prose mt-8 flex gap-4';
+        buttonContainer.className = 'not-prose mt-8 flex justify-end';
         buttonContainer.innerHTML = `
-            <button id="check-answers-btn" class="px-6 py-3 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 transition-all hover:shadow-lg flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-5 h-5"></i>
-                <span>检查答案</span>
-            </button>
             <button id="reset-answers-btn" class="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-all flex items-center gap-2">
                 <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
                 <span>重置</span>
@@ -438,7 +465,6 @@ function parseForInteractivity(wrapper, courseId) {
 
         exerciseHeader.parentElement.appendChild(buttonContainer);
 
-        buttonContainer.querySelector('#check-answers-btn').addEventListener('click', () => checkAllAnswers(courseId));
         buttonContainer.querySelector('#reset-answers-btn').addEventListener('click', () => resetAnswers(courseId));
     }
 }
@@ -519,6 +545,12 @@ function createFillInTheBlanks(pElement, courseId) {
                 data-course="${courseId}"
                 placeholder="输入答案...">`;
             li.innerHTML = li.innerHTML.replace('______', input);
+
+            const inputElement = li.querySelector(`input[data-exercise="fill"][data-index="${index}"][data-course="${courseId}"]`);
+            if (inputElement) {
+                inputElement.addEventListener('input', () => evaluateFillAnswer(inputElement));
+                inputElement.addEventListener('blur', () => evaluateFillAnswer(inputElement));
+            }
         });
         pElement.parentNode.insertBefore(list, pElement.nextSibling);
         return list;
@@ -555,6 +587,13 @@ function createMultipleChoice(pElement, courseId) {
                     <div class="choice-question">${questionHtml}</div>
                     ${optionsWrapper}
                 `;
+            }
+
+            const choiceContainer = li.querySelector(`[data-exercise="choice"][data-index="${index}"][data-course="${courseId}"]`);
+            if (choiceContainer) {
+                choiceContainer.querySelectorAll('input[type="radio"]').forEach(radio => {
+                    radio.addEventListener('change', () => evaluateChoiceAnswer(choiceContainer));
+                });
             }
         });
 
@@ -603,22 +642,32 @@ function createChoiceOption(optionText, courseId, questionIndex, optionIndex) {
 function createMatching(pElement, courseId) {
     const table = pElement.nextElementSibling;
     if (table && table.tagName === 'TABLE') {
-        table.id = "matching-exercise";
-        table.className = "w-full border-collapse";
+        table.id = 'matching-exercise';
+        table.className = 'w-full border-collapse';
+        table.dataset.course = courseId;
         const rows = table.querySelectorAll('tr');
         
         rows.forEach((row, rowIndex) => {
             if (rowIndex === 0) {
-                row.className = "bg-gray-100 font-semibold";
+                row.className = 'bg-gray-100 font-semibold';
             } else {
-                row.className = "hover:bg-gray-50 transition";
+                row.className = 'hover:bg-gray-50 transition';
                 const cells = row.querySelectorAll('td');
                 if (cells.length === 3) {
-                    cells[0].dataset.matchId = cells[0].textContent.match(new RegExp('\\d+'))[0];
+                    const sourceIdMatch = cells[0].textContent.match(new RegExp('\\d+'));
+                    const targetIdMatch = cells[2].textContent.match(new RegExp('[A-Z]+'));
+
+                    cells[0].dataset.matchId = sourceIdMatch ? sourceIdMatch[0] : '';
+                    cells[0].dataset.course = courseId;
                     cells[0].classList.add('cursor-pointer', 'match-source', 'p-3', 'border', 'hover:bg-blue-100', 'transition');
-                    cells[2].dataset.matchId = cells[2].textContent.match(new RegExp('[A-Z]+'))[0];
+
+                    cells[2].dataset.matchId = targetIdMatch ? targetIdMatch[0] : '';
+                    cells[2].dataset.course = courseId;
                     cells[2].classList.add('cursor-pointer', 'match-target', 'p-3', 'border', 'hover:bg-purple-100', 'transition');
-                    cells[1].classList.add('p-3', 'border');
+
+                    cells[1].classList.add('p-3', 'border', 'match-feedback-cell', 'text-center', 'font-semibold');
+                    cells[1].innerHTML = '';
+
                     row.dataset.rowId = rowIndex;
                     row.dataset.course = courseId;
                 }
@@ -631,24 +680,39 @@ function createMatching(pElement, courseId) {
             const target = e.target.closest('.match-target');
 
             if (source) {
-                document.querySelectorAll('.match-source').forEach(s => s.classList.remove('bg-blue-200', 'border-blue-500'));
+                table.querySelectorAll('.match-source').forEach(s => s.classList.remove('bg-blue-200', 'border-blue-500'));
                 selectedSource = source;
                 selectedSource.classList.add('bg-blue-200', 'border-blue-500');
             } else if (target && selectedSource) {
                 const sourceId = selectedSource.dataset.matchId;
                 const rowId = selectedSource.closest('tr').dataset.rowId;
 
-                const existingSelection = document.querySelector(`[data-match-row="${rowId}"]`);
+                const tableElement = target.closest('table');
+                const existingSelection = tableElement?.querySelector(`[data-match-row="${rowId}"]`);
                 if (existingSelection) {
                     existingSelection.classList.remove('bg-green-200', 'text-green-800', 'font-bold', 'border-green-500');
                     delete existingSelection.dataset.matchRow;
                 }
 
+                if (target.dataset.matchRow && target.dataset.matchRow !== rowId) {
+                    const previousRowSource = tableElement?.querySelector(`tr[data-row-id="${target.dataset.matchRow}"] .match-source`);
+                    if (previousRowSource) {
+                        const previousSourceId = previousRowSource.dataset.matchId;
+                        delete previousRowSource.dataset.userAnswer;
+                        applyMatchFeedback(previousRowSource, null);
+                        updateQuestionStatus('match', previousSourceId, null, courseId);
+                    }
+                }
+
                 target.classList.add('bg-green-200', 'text-green-800', 'font-bold', 'border-green-500');
                 target.dataset.matchRow = rowId;
                 selectedSource.dataset.userAnswer = target.dataset.matchId;
+
+                const evaluatedSource = selectedSource;
                 selectedSource.classList.remove('bg-blue-200', 'border-blue-500');
                 selectedSource = null;
+
+                evaluateMatchAnswer(evaluatedSource);
             }
         });
 
@@ -687,22 +751,25 @@ function collectUserAnswers() {
 function restoreUserAnswers(answers) {
     if (!answers) return;
 
+    isRestoringAnswers = true;
+    try {
     if (answers.fill && Array.isArray(answers.fill)) {
         document.querySelectorAll('[data-exercise="fill"]').forEach((input, index) => {
-            if (answers.fill[index]) {
-                input.value = answers.fill[index];
-            }
+                input.value = answers.fill[index] || '';
+                evaluateFillAnswer(input);
         });
     }
 
     if (answers.choice && Array.isArray(answers.choice)) {
         document.querySelectorAll('[data-exercise="choice"]').forEach((span, index) => {
             const value = answers.choice[index];
-            if (value) {
                 const courseId = span.dataset.course;
-                const radio = document.querySelector(`input[name="choice-${courseId}-${index}"][value="${value}"]`);
-                if (radio) radio.checked = true;
-            }
+
+                span.querySelectorAll(`input[name="choice-${courseId}-${index}"]`).forEach(radio => {
+                    radio.checked = radio.value === value;
+                });
+
+                evaluateChoiceAnswer(span);
         });
     }
 
@@ -712,169 +779,298 @@ function restoreUserAnswers(answers) {
             const source = document.querySelector(`.match-source[data-match-id="${sourceId}"]`);
             const target = document.querySelector(`.match-target[data-match-id="${targetId}"]`);
             if (source && target) {
-                source.dataset.userAnswer = targetId;
-                target.classList.add('bg-green-200', 'text-green-800', 'font-bold', 'border-green-500');
                 const rowId = source.closest('tr').dataset.rowId;
+                    source.dataset.userAnswer = targetId;
                 target.dataset.matchRow = rowId;
+                    evaluateMatchAnswer(source);
             }
         });
     }
+    } finally {
+        isRestoringAnswers = false;
+    }
+
+    updateProgressAfterAnswer(currentCourseId);
 }
 
-// 检查答案（增强版，带游戏化）
-function checkAllAnswers(courseId) {
-    const userAnswers = collectUserAnswers();
-    saveExerciseAnswers(courseId, userAnswers);
+// 即时评估函数
+function evaluateFillAnswer(input) {
+    if (!input) return;
 
-    let totalQuestions = 0;
-    let correctCount = 0;
+    const index = Number(input.dataset.index);
+    const courseId = input.dataset.course;
+    const userAnswer = input.value.trim();
+    const correctAnswer = (correctAnswers.fill && correctAnswers.fill[index]) ? correctAnswers.fill[index] : '';
 
-    // 检查填空题
-    document.querySelectorAll('[data-exercise="fill"]').forEach((input, index) => {
-        totalQuestions++;
-        const userAnswer = input.value.trim().toLowerCase();
-        const correctAnswer = (correctAnswers.fill && correctAnswers.fill[index]) ? correctAnswers.fill[index].toLowerCase() : '';
-        const isCorrect = userAnswer === correctAnswer;
+    input.classList.remove('border-green-500', 'border-red-500', 'bg-green-50', 'bg-red-50');
 
-        input.classList.remove('border-gray-300', 'border-green-500', 'border-red-500', 'bg-green-50', 'bg-red-50');
+    if (!userAnswer) {
+        input.classList.add('border-gray-300');
+        removeAnswerFeedback(input);
+        updateQuestionStatus('fill', index, null, courseId);
+        if (!isRestoringAnswers) {
+            persistExerciseAnswers(courseId);
+            updateProgressAfterAnswer(courseId);
+        }
+        return;
+    }
 
-        if (isCorrect) {
-            correctCount++;
-            input.classList.add('border-green-500', 'bg-green-50');
-            addAnswerFeedback(input, true);
-            addPoints(POINT_RULES.CORRECT_ANSWER, '答对题目');
-        } else {
-            input.classList.add('border-red-500', 'bg-red-50');
-            addAnswerFeedback(input, false, correctAnswer);
-            addPoints(POINT_RULES.WRONG_ANSWER, '答错题目');
-            
-            // 记录错题
-            recordMistake(`${courseId}_fill_${index}`, {
-                type: 'fill',
-                question: input.closest('li').textContent,
+    const isCorrect = normalizeAnswer(userAnswer) === normalizeAnswer(correctAnswer);
+    input.classList.remove('border-gray-300');
+    input.classList.add(isCorrect ? 'border-green-500' : 'border-red-500', isCorrect ? 'bg-green-50' : 'bg-red-50');
+
+    addAnswerFeedback(input, isCorrect, correctAnswer);
+    updateQuestionStatus('fill', index, isCorrect ? 'correct' : 'incorrect', courseId, {
+        question: input.closest('li')?.textContent?.trim() || '',
                 correctAnswer,
-                userAnswer,
-                courseId
-            });
-        }
+        userAnswer
     });
 
-    // 检查选择题
-    document.querySelectorAll('[data-exercise="choice"]').forEach((span, index) => {
-        totalQuestions++;
-        const courseId = span.dataset.course;
-        const selectedRadio = document.querySelector(`input[name="choice-${courseId}-${index}"]:checked`);
-        const isCorrect = selectedRadio && correctAnswers.choice && selectedRadio.value === correctAnswers.choice[index];
+    if (!isRestoringAnswers) {
+        persistExerciseAnswers(courseId);
+        updateProgressAfterAnswer(courseId);
+    }
+}
 
-        const resultSpan = span.nextElementSibling && span.nextElementSibling.classList.contains('answer-feedback')
-            ? span.nextElementSibling
-            : document.createElement('span');
+function evaluateChoiceAnswer(container) {
+    if (!container) return;
 
-        if (!span.nextElementSibling || !span.nextElementSibling.classList.contains('answer-feedback')) {
-            resultSpan.className = 'answer-feedback ml-3 font-bold text-lg';
-            span.parentNode.insertBefore(resultSpan, span.nextSibling);
+    const courseId = container.dataset.course;
+    const index = Number(container.dataset.index);
+    const correctAnswer = (correctAnswers.choice && correctAnswers.choice[index]) ? correctAnswers.choice[index] : '';
+    const selectedRadio = container.querySelector('input[type="radio"]:checked');
+
+    let resultSpan = container.nextElementSibling;
+    const hasFeedback = resultSpan && resultSpan.classList.contains('answer-feedback');
+
+    if (!selectedRadio) {
+        if (hasFeedback && resultSpan) {
+            resultSpan.remove();
         }
+        updateQuestionStatus('choice', index, null, courseId);
+        if (!isRestoringAnswers) {
+            persistExerciseAnswers(courseId);
+            updateProgressAfterAnswer(courseId);
+        }
+        return;
+    }
 
-        if (isCorrect) {
-            correctCount++;
-            resultSpan.textContent = '✓';
-            resultSpan.className = 'answer-feedback ml-3 text-green-600 text-2xl font-bold';
-            addPoints(POINT_RULES.CORRECT_ANSWER, '答对题目');
+    const isCorrect = normalizeAnswer(selectedRadio.value) === normalizeAnswer(correctAnswer);
+
+    if (!hasFeedback) {
+        resultSpan = document.createElement('span');
+        resultSpan.className = 'answer-feedback ml-3 text-2xl font-bold';
+        container.parentNode.insertBefore(resultSpan, container.nextSibling);
+    }
+
+    resultSpan.textContent = isCorrect ? '✓' : '✗';
+    resultSpan.className = `answer-feedback ml-3 text-2xl font-bold ${isCorrect ? 'text-green-600' : 'text-red-600'}`;
+
+    updateQuestionStatus('choice', index, isCorrect ? 'correct' : 'incorrect', courseId, {
+        question: container.closest('li')?.textContent?.trim() || '',
+        correctAnswer,
+        userAnswer: selectedRadio.value
+    });
+
+    if (!isRestoringAnswers) {
+        persistExerciseAnswers(courseId);
+        updateProgressAfterAnswer(courseId);
+    }
+}
+
+function evaluateMatchAnswer(sourceCell) {
+    if (!sourceCell) return;
+
+    const row = sourceCell.closest('tr');
+    const courseId = row?.dataset.course;
+    const sourceId = sourceCell.dataset.matchId;
+    const userAnswer = sourceCell.dataset.userAnswer;
+    const correctAnswer = correctAnswers.match ? correctAnswers.match[sourceId] : null;
+
+    if (!userAnswer) {
+        applyMatchFeedback(sourceCell, null);
+        updateQuestionStatus('match', sourceId, null, courseId);
+        if (!isRestoringAnswers) {
+            persistExerciseAnswers(courseId);
+            updateProgressAfterAnswer(courseId);
+        }
+        return;
+    }
+
+    const isCorrect = normalizeAnswer(userAnswer) === normalizeAnswer(correctAnswer);
+    applyMatchFeedback(sourceCell, isCorrect ? 'correct' : 'incorrect');
+
+    updateQuestionStatus('match', sourceId, isCorrect ? 'correct' : 'incorrect', courseId, {
+        question: sourceCell.textContent.trim(),
+        correctAnswer,
+        userAnswer
+    });
+
+    if (!isRestoringAnswers) {
+        persistExerciseAnswers(courseId);
+        updateProgressAfterAnswer(courseId);
+    }
+}
+
+function applyMatchFeedback(sourceCell, status) {
+    const row = sourceCell.closest('tr');
+    const table = sourceCell.closest('table');
+    const rowId = row?.dataset.rowId;
+    const feedbackCell = row?.querySelector('.match-feedback-cell');
+    const target = table?.querySelector(`.match-target[data-match-row="${rowId}"]`);
+
+    if (feedbackCell) {
+        feedbackCell.innerHTML = '';
+        if (status === 'correct') {
+            feedbackCell.innerHTML = '<span class="text-green-600 text-2xl font-bold">✓</span>';
+        } else if (status === 'incorrect') {
+            feedbackCell.innerHTML = '<span class="text-red-600 text-2xl font-bold">✗</span>';
+        }
+    }
+
+    if (target) {
+        target.classList.remove('bg-green-200', 'text-green-800', 'font-bold', 'border-green-500', 'bg-red-100', 'text-red-600', 'border-red-500');
+        if (status === 'correct') {
+            target.classList.add('bg-green-200', 'text-green-800', 'font-bold', 'border-green-500');
+        } else if (status === 'incorrect') {
+            target.classList.add('bg-red-100', 'text-red-600', 'border-red-500');
         } else {
-            resultSpan.textContent = '✗';
-            resultSpan.className = 'answer-feedback ml-3 text-red-600 text-2xl font-bold';
+            delete target.dataset.matchRow;
+        }
+    }
+}
+
+function persistExerciseAnswers(courseId) {
+    if (!courseId || isRestoringAnswers) {
+        return;
+    }
+    saveExerciseAnswers(courseId, collectUserAnswers());
+}
+
+function updateQuestionStatus(type, key, status, courseId, metadata = {}) {
+    const previousStatus = getAnswerStatus(type, key);
+
+    if (previousStatus === status) {
+        return;
+    }
+
+    setAnswerStatus(type, key, status);
+
+    if (isRestoringAnswers || !courseId) {
+        return;
+    }
+
+    if (status === 'correct') {
+        addPoints(POINT_RULES.CORRECT_ANSWER, '答对题目');
+    } else if (status === 'incorrect') {
             addPoints(POINT_RULES.WRONG_ANSWER, '答错题目');
             
-            if (selectedRadio) {
-                recordMistake(`${courseId}_choice_${index}`, {
-                    type: 'choice',
-                    question: span.closest('li').textContent,
-                    correctAnswer: correctAnswers.choice[index],
-                    userAnswer: selectedRadio.value,
+        if (previousStatus !== 'incorrect') {
+            const questionId = buildQuestionId(type, courseId, key);
+            recordMistake(questionId, {
+                type,
+                question: metadata.question || '',
+                correctAnswer: metadata.correctAnswer || '',
+                userAnswer: metadata.userAnswer || '',
                     courseId
                 });
             }
         }
-    });
+}
 
-    // 检查匹配题
-    document.querySelectorAll('.match-source').forEach(source => {
-        totalQuestions++;
-        const sourceId = source.dataset.matchId;
-        const userAnswer = source.dataset.userAnswer;
-        const correctAnswer = correctAnswers.match && correctAnswers.match[sourceId];
-        const isCorrect = userAnswer === correctAnswer;
+function getAnswerStatus(type, key) {
+    if (type === 'fill' || type === 'choice') {
+        return answerStatuses[type]?.[key] ?? null;
+    }
+    return answerStatuses.match?.[key] ?? null;
+}
 
-        let resultCell = source.nextElementSibling;
-        if (!resultCell || !resultCell.classList.contains('match-result')) {
-            resultCell = document.createElement('td');
-            resultCell.className = 'match-result p-3 border text-center';
-            source.parentElement.insertBefore(resultCell, source.nextElementSibling);
+function setAnswerStatus(type, key, status) {
+    if (type === 'fill' || type === 'choice') {
+        if (!Array.isArray(answerStatuses[type])) {
+            answerStatuses[type] = [];
         }
-
-        if (isCorrect) {
-            correctCount++;
-            resultCell.innerHTML = '<span class="text-green-600 text-2xl font-bold">✓</span>';
-            addPoints(POINT_RULES.CORRECT_ANSWER, '答对题目');
-        } else {
-            resultCell.innerHTML = '<span class="text-red-600 text-2xl font-bold">✗</span>';
-            addPoints(POINT_RULES.WRONG_ANSWER, '答错题目');
-            
-            if (userAnswer) {
-                const courseId = source.closest('tr').dataset.course;
-                recordMistake(`${courseId}_match_${sourceId}`, {
-                    type: 'match',
-                    question: `匹配题 ${sourceId}`,
-                    correctAnswer,
-                    userAnswer,
-                    courseId
-                });
-            }
+        answerStatuses[type][key] = status;
+    } else {
+        if (!answerStatuses.match) {
+            answerStatuses.match = {};
         }
-    });
+        answerStatuses.match[key] = status;
+    }
+}
 
-    // 计算分数
-    const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+function buildQuestionId(type, courseId, key) {
+    return `${courseId}_${type}_${key}`;
+}
 
-    // 更新课程进度
-    updateCourseProgress(courseId, {
+function updateProgressAfterAnswer(courseId) {
+    if (!courseId) return;
+
+    const summary = getAnswerSummary();
+    const score = summary.totalQuestions > 0
+        ? Math.round((summary.correctCount / summary.totalQuestions) * 100)
+        : 0;
+
+    const currentProgress = getCourseProgress(courseId) || {};
+    const updatedProgress = updateCourseProgress(courseId, {
         score,
-        attempts: (getCourseProgress(courseId).attempts || 0) + 1,
-        lastScore: score
-    });
+        lastScore: score,
+        attempts: currentProgress.attempts || 1
+    }) || currentProgress;
 
-    // 检查是否完美答题
-    if (score === 100) {
+    const answeredAll = summary.totalQuestions > 0 && summary.answeredCount === summary.totalQuestions;
+
+    if (!answeredAll && updatedProgress.failedNotified) {
+        updateCourseProgress(courseId, { failedNotified: false });
+    }
+
+    if (score === 100 && answeredAll && !updatedProgress.perfectCelebrated) {
         addPoints(POINT_RULES.PERFECT_EXERCISE, '完美答题');
         awardBadge('perfect_score');
         showCelebration('🎉 完美答题！');
+        updateCourseProgress(courseId, { perfectCelebrated: true });
     }
 
-    // 检查是否完成课程
-    if (score >= 60) {
+    if (answeredAll && score >= 60 && !updatedProgress.completed) {
         completeCourse(courseId, score);
         addPoints(POINT_RULES.COMPLETE_LESSON, '完成课程');
-        showCourseCompleteModal(courseId, score, correctCount, totalQuestions);
-    } else {
-        showScoreModal(score, correctCount, totalQuestions);
+        showCourseCompleteModal(
+            getCourseById(courseId),
+            score,
+            summary.correctCount,
+            summary.totalQuestions,
+            getNextRecommendedCourse()
+        );
+    } else if (answeredAll && score < 60 && !updatedProgress.failedNotified) {
+        showScoreModal(score, summary.correctCount, summary.totalQuestions);
+        updateCourseProgress(courseId, { failedNotified: true });
     }
+}
 
-    // 更新UI
-    updateTopBar();
-    updateSidebar();
+function getAnswerSummary() {
+    const fillStatuses = answerStatuses.fill || [];
+    const choiceStatuses = answerStatuses.choice || [];
+    const matchStatuses = answerStatuses.match ? Object.values(answerStatuses.match) : [];
+    const totalQuestions =
+        (correctAnswers.fill?.length || 0) +
+        (correctAnswers.choice?.length || 0) +
+        (correctAnswers.match ? Object.keys(correctAnswers.match).length : 0);
 
-    // 更新按钮状态
-    const checkButton = document.getElementById('check-answers-btn');
-    if (checkButton) {
-        checkButton.innerHTML = `
-            <i data-lucide="check-circle" class="w-5 h-5"></i>
-            <span>已检查 (${score}%)</span>
-        `;
-        checkButton.className = score >= 60
-            ? 'px-6 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 transition-all hover:shadow-lg flex items-center gap-2'
-            : 'px-6 py-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 transition-all hover:shadow-lg flex items-center gap-2';
-        lucide.createIcons();
-    }
+    const allStatuses = [...fillStatuses, ...choiceStatuses, ...matchStatuses];
+    const correctCount = allStatuses.filter(status => status === 'correct').length;
+    const answeredCount = allStatuses.filter(status => status === 'correct' || status === 'incorrect').length;
+
+    return { totalQuestions, correctCount, answeredCount };
+}
+
+function normalizeAnswer(value) {
+    if (!value) return '';
+    return value
+        .toString()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
 }
 
 // 添加答案反馈（即时提示）
@@ -892,11 +1088,18 @@ function addAnswerFeedback(element, isCorrect, correctAnswer = '') {
     } else {
         feedback.innerHTML = `<span class="text-red-600 font-medium">✗ 错误</span>`;
         if (correctAnswer) {
-            feedback.innerHTML += ` <span class="text-gray-600">正确答案：<span class="font-semibold text-blue-600">${correctAnswer}</span></span>`;
+            feedback.innerHTML += ` <span class="text-gray-600">正确答案：<span class="font-semibold text-blue-600">${escapeHtml(correctAnswer)}</span></span>`;
         }
     }
 
     element.parentNode.insertBefore(feedback, element.nextSibling);
+}
+
+function removeAnswerFeedback(element) {
+    const feedback = element?.nextElementSibling;
+    if (feedback && feedback.classList.contains('answer-feedback')) {
+        feedback.remove();
+    }
 }
 
 // 重置答案
@@ -905,16 +1108,13 @@ function resetAnswers(courseId = currentCourseId) {
         input.value = '';
         input.classList.remove('border-green-500', 'border-red-500', 'bg-green-50', 'bg-red-50');
         input.classList.add('border-gray-300');
-        const feedback = input.nextElementSibling;
-        if (feedback && feedback.classList.contains('answer-feedback')) {
-            feedback.remove();
-        }
+        removeAnswerFeedback(input);
     });
 
     document.querySelectorAll('[data-exercise="choice"]').forEach(span => {
-        const courseId = span.dataset.course;
-        const index = span.dataset.index;
-        document.querySelectorAll(`input[name="choice-${courseId}-${index}"]`).forEach(radio => {
+        const choiceCourseId = span.dataset.course;
+        const choiceIndex = span.dataset.index;
+        document.querySelectorAll(`input[name="choice-${choiceCourseId}-${choiceIndex}"]`).forEach(radio => {
             radio.checked = false;
         });
         const feedback = span.nextElementSibling;
@@ -930,23 +1130,19 @@ function resetAnswers(courseId = currentCourseId) {
 
     document.querySelectorAll('.match-target').forEach(target => {
         target.classList.remove('bg-green-200', 'text-green-800', 'font-bold', 'border-green-500');
+        target.classList.remove('bg-red-100', 'text-red-600', 'border-red-500');
         delete target.dataset.matchRow;
     });
 
-    document.querySelectorAll('.match-result').forEach(result => result.remove());
+    document.querySelectorAll('.match-feedback-cell').forEach(cell => {
+        cell.innerHTML = '';
+    });
 
-    const checkButton = document.getElementById('check-answers-btn');
-    if (checkButton) {
-        checkButton.innerHTML = `
-            <i data-lucide="check-circle" class="w-5 h-5"></i>
-            <span>检查答案</span>
-        `;
-        checkButton.className = 'px-6 py-3 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 transition-all hover:shadow-lg flex items-center gap-2';
-        lucide.createIcons();
-    }
+    initializeAnswerStatuses();
 
     if (courseId) {
         clearExerciseAnswers(courseId);
+        updateProgressAfterAnswer(courseId);
     }
 }
 
