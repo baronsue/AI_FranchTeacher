@@ -77,6 +77,20 @@ export function getExerciseAnswers(exerciseId) {
 }
 
 /**
+ * 清除练习答案
+ */
+export function clearExerciseAnswers(exerciseId) {
+    try {
+        const key = `${STORAGE_KEY_PREFIX}exercise_${exerciseId}`;
+        localStorage.removeItem(key);
+        return true;
+    } catch (error) {
+        console.error('Failed to clear exercise answers:', error);
+        return false;
+    }
+}
+
+/**
  * 保存对话历史
  */
 export function saveDialogueHistory(history) {

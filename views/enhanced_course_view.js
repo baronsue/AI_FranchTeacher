@@ -3,7 +3,7 @@
  */
 
 import { speak } from '../services/speech_service.js';
-import { saveExerciseAnswers, getExerciseAnswers } from '../utils/progress_manager.js';
+import { saveExerciseAnswers, getExerciseAnswers, clearExerciseAnswers } from '../utils/progress_manager.js';
 import {
     getAllCourses,
     getCourseById,
@@ -32,9 +32,33 @@ import {
 } from '../utils/gamification_manager.js';
 
 let currentCourseId = 'lesson_1';
-let correctAnswers = {};
 let startTime = null;
 let studyTimer = null;
+
+const createEmptyAnswerState = () => ({
+    fill: [],
+    choice: [],
+    match: {}
+});
+
+let correctAnswers = createEmptyAnswerState();
+
+function resetCorrectAnswers() {
+    correctAnswers = createEmptyAnswerState();
+}
+
+function escapeHtml(value) {
+    if (value === undefined || value === null) {
+        return '';
+    }
+
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 /**
  * 渲染课程导航侧边栏
@@ -334,6 +358,7 @@ function stopStudyTimer() {
  * 解析课程内容，添加交互性
  */
 function parseForInteractivity(wrapper, courseId) {
+    resetCorrectAnswers();
     // 对话部分添加语音按钮
     const dialogueParagraphs = Array.from(wrapper.querySelectorAll('p')).filter(p =>
         p.textContent.includes('Aurélie:') || p.textContent.includes('Li Wei:')
@@ -414,7 +439,7 @@ function parseForInteractivity(wrapper, courseId) {
         exerciseHeader.parentElement.appendChild(buttonContainer);
 
         buttonContainer.querySelector('#check-answers-btn').addEventListener('click', () => checkAllAnswers(courseId));
-        buttonContainer.querySelector('#reset-answers-btn').addEventListener('click', resetAnswers);
+        buttonContainer.querySelector('#reset-answers-btn').addEventListener('click', () => resetAnswers(courseId));
     }
 }
 
@@ -422,27 +447,65 @@ function parseForInteractivity(wrapper, courseId) {
 
 // 答案解析和练习创建函数（从原来的course_view.js复制并增强）
 function parseAnswers(answerString) {
-    const cleanString = answerString.replace('答案：', '').replace('(', '').replace(')', '').trim();
-    const parts = cleanString.split(';');
+    if (!answerString) {
+        return;
+    }
 
-    if (parts[0]) {
-        const fillMatches = parts[0].match(new RegExp('[a-z]+\\.\\s*\\w+', 'g'));
-        correctAnswers.fill = fillMatches ? fillMatches.map(s => s.split('.')[1].trim()) : [];
+    correctAnswers.fill = [];
+    correctAnswers.choice = [];
+    correctAnswers.match = {};
+
+    const normalized = answerString
+        .replace(/<!--|-->/g, '')
+        .replace(/[()（）]/g, '')
+        .replace(/答案[:：]?/i, '')
+        .replace(/Unité\s*\d+[:：]?/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!normalized) {
+        return;
     }
-    if (parts[1]) {
-        const choiceMatches = parts[1].match(new RegExp('[a-z]+\\.\\s*\\w+', 'g'));
-        correctAnswers.choice = choiceMatches ? choiceMatches.map(s => s.split('.')[1].trim()) : [];
-    }
-    if (parts[2]) {
-        correctAnswers.match = {};
-        const matchMatches = parts[2].match(new RegExp('\\d-[A-Z]', 'g'));
-        if (matchMatches) {
-            matchMatches.forEach(m => {
-                const [num, letter] = m.split('-');
-                correctAnswers.match[num] = letter;
-            });
+
+    const sectionRegex = /([1-3])\s*[-:：]\s*([^;；]+)/g;
+    let match;
+
+    while ((match = sectionRegex.exec(normalized)) !== null) {
+        const sectionIndex = match[1];
+        const content = match[2].trim();
+
+        if (sectionIndex === '1') {
+            correctAnswers.fill = parseSequentialAnswers(content);
+        } else if (sectionIndex === '2') {
+            correctAnswers.choice = parseSequentialAnswers(content);
+        } else if (sectionIndex === '3') {
+            correctAnswers.match = parseMatchingAnswers(content);
         }
     }
+}
+
+function parseSequentialAnswers(content) {
+    const answers = [];
+    const pairRegex = /([a-z])[\.\)]?\s*([^,，；;]+)/gi;
+    let match;
+
+    while ((match = pairRegex.exec(content)) !== null) {
+        answers.push(match[2].trim());
+    }
+
+    return answers;
+}
+
+function parseMatchingAnswers(content) {
+    const matchAnswers = {};
+    const pairRegex = /(\d+)\s*[-:：]\s*([A-Z])/g;
+    let match;
+
+    while ((match = pairRegex.exec(content)) !== null) {
+        matchAnswers[match[1]] = match[2];
+    }
+
+    return matchAnswers;
 }
 
 function createFillInTheBlanks(pElement, courseId) {
@@ -467,23 +530,74 @@ function createMultipleChoice(pElement, courseId) {
     const list = pElement.nextElementSibling;
     if (list && list.tagName === 'OL') {
         Array.from(list.children).forEach((li, index) => {
-            li.innerHTML = li.innerHTML.replace('______', `
-                <span class="font-semibold mx-2" data-exercise="choice" data-index="${index}" data-course="${courseId}">
-                    <label class="mr-4 cursor-pointer inline-flex items-center px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-blue-50 transition">
-                        <input type="radio" name="choice-${courseId}-${index}" value="un" class="mr-2 w-4 h-4 text-blue-600">
-                        <span>un</span>
-                    </label>
-                    <label class="cursor-pointer inline-flex items-center px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-blue-50 transition">
-                        <input type="radio" name="choice-${courseId}-${index}" value="une" class="mr-2 w-4 h-4 text-blue-600">
-                        <span>une</span>
-                    </label>
+            const { questionHtml, options } = extractChoiceQuestionAndOptions(li);
+            const choiceOptions = (options.length > 0 ? options : ['un', 'une'])
+                .map((optionText, optionIndex) => createChoiceOption(optionText, courseId, index, optionIndex))
+                .join('');
+
+            const inlineClass = questionHtml.includes('______')
+                ? 'inline-flex flex-wrap gap-2 mx-2'
+                : 'flex flex-wrap gap-3 mt-3';
+
+            const optionsWrapper = `
+                <span class="choice-options ${inlineClass}"
+                    data-exercise="choice"
+                    data-index="${index}"
+                    data-course="${courseId}">
+                    ${choiceOptions}
                 </span>
-            `);
+            `;
+
+            if (questionHtml.includes('______')) {
+                li.innerHTML = questionHtml.replace('______', optionsWrapper);
+            } else {
+                li.innerHTML = `
+                    <div class="choice-question">${questionHtml}</div>
+                    ${optionsWrapper}
+                `;
+            }
         });
+
         pElement.parentNode.insertBefore(list, pElement.nextSibling);
         return list;
     }
     return pElement;
+}
+
+function extractChoiceQuestionAndOptions(listItem) {
+    const hasOptionMarker = listItem.innerHTML.includes('□');
+    const questionHtml = hasOptionMarker
+        ? listItem.innerHTML.split('□')[0].trim()
+        : listItem.innerHTML;
+
+    const rawText = (listItem.textContent || '').trim();
+    const optionTexts = rawText
+        .split('□')
+        .slice(1)
+        .map(option => option.replace(/[\s\u3000\u00A0]+/g, ' ').replace(/[，,]$/g, '').trim())
+        .filter(Boolean);
+
+    return {
+        questionHtml,
+        options: optionTexts
+    };
+}
+
+function createChoiceOption(optionText, courseId, questionIndex, optionIndex) {
+    const value = optionText.trim();
+    const optionId = `choice-${courseId}-${questionIndex}-${optionIndex}`;
+
+    return `
+        <label for="${optionId}" class="cursor-pointer inline-flex items-center px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-blue-50 transition">
+            <input
+                type="radio"
+                id="${optionId}"
+                name="choice-${courseId}-${questionIndex}"
+                value="${escapeHtml(value)}"
+                class="mr-2 w-4 h-4 text-blue-600 focus:ring-blue-500">
+            <span>${escapeHtml(value)}</span>
+        </label>
+    `;
 }
 
 function createMatching(pElement, courseId) {
@@ -786,7 +900,7 @@ function addAnswerFeedback(element, isCorrect, correctAnswer = '') {
 }
 
 // 重置答案
-function resetAnswers() {
+function resetAnswers(courseId = currentCourseId) {
     document.querySelectorAll('[data-exercise="fill"]').forEach(input => {
         input.value = '';
         input.classList.remove('border-green-500', 'border-red-500', 'bg-green-50', 'bg-red-50');
@@ -829,6 +943,10 @@ function resetAnswers() {
         `;
         checkButton.className = 'px-6 py-3 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 transition-all hover:shadow-lg flex items-center gap-2';
         lucide.createIcons();
+    }
+
+    if (courseId) {
+        clearExerciseAnswers(courseId);
     }
 }
 
