@@ -67,14 +67,18 @@ const query = async (text, params) => {
 const getClient = async () => {
     const client = await pool.connect();
     const query = client.query.bind(client);
-    const release = client.release.bind(client);
 
-    // 设置超时
+    let released = false;
     const timeout = setTimeout(() => {
         console.error('客户端连接超时，可能忘记释放');
     }, 5000);
 
-    client.release = () => {
+    const release = () => {
+        if (released) {
+            return;
+        }
+
+        released = true;
         clearTimeout(timeout);
         client.release();
     };

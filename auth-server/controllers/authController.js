@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const { validationResult } = require('express-validator');
 const { query } = require('../config/database');
 const {
     generateAccessToken,
@@ -6,10 +7,28 @@ const {
     verifyRefreshToken
 } = require('../middleware/auth');
 
+const respondValidationErrors = (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        res.status(400).json({
+            success: false,
+            error: errors.array()[0].msg,
+            details: errors.array()
+        });
+        return true;
+    }
+    return false;
+};
+
 // 用户注册
 const register = async (req, res) => {
     try {
+        if (respondValidationErrors(req, res)) {
+            return;
+        }
+
         const { username, email, password, displayName } = req.body;
+        const normalizedDisplayName = (displayName || username || '').trim();
 
         // 验证输入
         if (!username || !email || !password) {
@@ -49,7 +68,7 @@ const register = async (req, res) => {
             `INSERT INTO users (username, email, password_hash, display_name)
              VALUES ($1, $2, $3, $4)
              RETURNING id, username, email, display_name, avatar, created_at`,
-            [username, email, passwordHash, displayName || username]
+            [username, email, passwordHash, normalizedDisplayName || username]
         );
 
         const user = result.rows[0];
@@ -109,6 +128,10 @@ const register = async (req, res) => {
 // 用户登录
 const login = async (req, res) => {
     try {
+        if (respondValidationErrors(req, res)) {
+            return;
+        }
+
         const { username, password } = req.body;
 
         if (!username || !password) {
@@ -200,14 +223,16 @@ const login = async (req, res) => {
 // 刷新令牌
 const refreshToken = async (req, res) => {
     try {
-        const { refreshToken } = req.body;
+        const { refreshToken: incomingRefreshToken } = req.body;
 
-        if (!refreshToken) {
+        if (typeof incomingRefreshToken !== 'string' || !incomingRefreshToken.trim()) {
             return res.status(401).json({
                 success: false,
                 error: '未提供刷新令牌'
             });
         }
+
+        const refreshToken = incomingRefreshToken.trim();
 
         // 验证刷新令牌
         const decoded = verifyRefreshToken(refreshToken);

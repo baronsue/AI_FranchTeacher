@@ -31,6 +31,8 @@ const validateRegistration = [
         .trim()
         .isLength({ max: 100 })
         .withMessage('显示名称最多100个字符')
+        .matches(/^[^<>]*$/)
+        .withMessage('显示名称不能包含HTML标签')
 ];
 
 const validateLogin = [

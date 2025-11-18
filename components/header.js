@@ -4,12 +4,29 @@ function navigate(view) {
     window.dispatchEvent(new CustomEvent('navigate', { detail: { view } }));
 }
 
+function escapeHtml(value) {
+    if (value === undefined || value === null) {
+        return '';
+    }
+
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 export function createHeader() {
     const header = document.createElement('header');
     header.className = 'bg-white shadow-md sticky top-0 z-50';
 
     const isAuthenticated = authService.isAuthenticated();
     const user = isAuthenticated ? authService.getCurrentUser() : null;
+    const safeDisplayName = user
+        ? escapeHtml(user.displayName || user.display_name || user.username || '')
+        : '';
+    const safeAvatar = user ? escapeHtml(user.avatar || '🎓') : '';
 
     header.innerHTML = `
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -38,9 +55,9 @@ export function createHeader() {
                         <!-- 用户信息 -->
                         <div class="flex items-center space-x-2">
                             <span class="text-sm font-medium text-gray-600 hidden sm:block">
-                                ${user.displayName || user.username}
+                                ${safeDisplayName}
                             </span>
-                            <div class="text-2xl">${user.avatar || '🎓'}</div>
+                            <div class="text-2xl">${safeAvatar || '🎓'}</div>
                         </div>
                         <!-- 登出按钮 -->
                         <button id="logout-btn" class="text-sm text-gray-600 hover:text-red-600 font-medium transition-colors">

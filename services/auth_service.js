@@ -21,6 +21,20 @@ function safeParseJSON(key, defaultValue = null) {
     }
 }
 
+function normalizeUserPayload(user) {
+    if (!user || typeof user !== 'object') {
+        return null;
+    }
+
+    const normalized = { ...user };
+    const resolvedDisplayName = (user.displayName || user.display_name || '').trim();
+
+    normalized.displayName = resolvedDisplayName || normalized.displayName || '';
+    normalized.avatar = normalized.avatar || '🎓';
+
+    return normalized;
+}
+
 // 带超时控制的fetch
 async function fetchWithTimeout(url, options = {}, timeout = 30000) {
     const controller = new AbortController();
@@ -46,7 +60,7 @@ class AuthService {
     constructor() {
         this.accessToken = localStorage.getItem('access_token');
         this.refreshToken = localStorage.getItem('refresh_token');
-        this.user = safeParseJSON('user', null);
+        this.user = normalizeUserPayload(safeParseJSON('user', null));
         // Token刷新锁，防止并发刷新
         this.refreshPromise = null;
     }
@@ -218,7 +232,7 @@ class AuthService {
         try {
             const response = await this.authenticatedRequest('/auth/me');
             if (response.success) {
-                this.user = response.data;
+                this.user = normalizeUserPayload(response.data);
                 localStorage.setItem('user', JSON.stringify(this.user));
                 return this.user;
             }
@@ -335,7 +349,7 @@ class AuthService {
     saveAuthData(data) {
         this.accessToken = data.accessToken;
         this.refreshToken = data.refreshToken;
-        this.user = data.user;
+        this.user = normalizeUserPayload(data.user);
 
         localStorage.setItem('access_token', this.accessToken);
         localStorage.setItem('refresh_token', this.refreshToken);
