@@ -3,12 +3,12 @@ const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognit
 export const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 
 /**
- * 是否为「主要用触摸/粗指针」环境。
- * 勿单独依赖 'ontouchstart' in window：Chrome 桌面版常为 true，会误判并影响自动朗读。
+ * 是否为「主要用触摸/粗指针」环境（用于朗读调度等）。
+ * 勿用 maxTouchPoints：带触摸屏的笔记本会被误判，导致桌面端走异步 speak 链后常无声。
+ * 勿单独用 'ontouchstart' in window：Chrome 桌面常为 true。
  */
 export function prefersCoarsePointer() {
     if (typeof window === 'undefined') return false;
-    if ((navigator.maxTouchPoints || 0) > 0) return true;
     try {
         if (window.matchMedia('(pointer: coarse)').matches) return true;
         if (window.matchMedia('(hover: none)').matches && window.matchMedia('(max-width: 1024px)').matches) {
