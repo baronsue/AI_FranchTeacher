@@ -211,7 +211,10 @@ function parseForInteractivity(wrapper) {
             const block = parseAnswerBlock(answerComment.textContent);
             correctAnswers.fill.push(...block.fill);
             correctAnswers.choice.push(...block.choice);
-            Object.assign(correctAnswers.match, block.match);
+            // 各单元匹配题都用 1–4 编号，必须加单元前缀，否则会互相覆盖
+            Object.entries(block.match).forEach(([k, v]) => {
+                correctAnswers.match[`${headerIndex}_${k}`] = v;
+            });
             answerComment.remove();
         }
 
@@ -239,7 +242,7 @@ function parseForInteractivity(wrapper) {
                         processedCount++;
                     } else if (liText.includes('匹配题')) {
                         console.log('  → 处理匹配题');
-                        createMatching(li);
+                        createMatching(li, headerIndex);
                         processedCount++;
                     }
                 });
@@ -255,7 +258,7 @@ function parseForInteractivity(wrapper) {
                 processedCount++;
             } else if (text.includes('匹配题')) {
                 console.log('→ 处理匹配题');
-                element = createMatching(element);
+                element = createMatching(element, headerIndex);
                 processedCount++;
             } else if(element.tagName === 'H3' || element.tagName === 'H2') {
                 console.log('→ 遇到下一个章节，停止');
@@ -402,7 +405,7 @@ function createMultipleChoice(element) {
     return element;
 }
 
-function createMatching(element) {
+function createMatching(element, exerciseUnitIndex = 0) {
     // 查找表格：可能在当前元素内部（LI）或后面
     let table = null;
     if (element.tagName === 'TABLE') {
@@ -420,21 +423,23 @@ function createMatching(element) {
     console.log('匹配题查找表格:', element.tagName, '找到表格:', !!table, '表格标签:', table?.tagName);
 
     if (table && table.tagName === 'TABLE') {
-        table.id = "matching-exercise";
+        table.id = `matching-exercise-${exerciseUnitIndex}`;
+        table.dataset.exerciseUnit = String(exerciseUnitIndex);
         const rows = table.querySelectorAll('tr');
-        console.log(`找到匹配题表格，共 ${rows.length} 行`);
+        console.log(`找到匹配题表格，共 ${rows.length} 行 (单元 ${exerciseUnitIndex})`);
 
         rows.forEach((row, rowIndex) => {
             if (rowIndex > 0) { // Skip header
                 const cells = row.querySelectorAll('td');
                 console.log(`行 ${rowIndex}: ${cells.length} 个单元格`);
                 if (cells.length >= 2) {
-                    // 第一列（左侧）是源
+                    // 第一列（左侧）是源；与答案键 exerciseUnitIndex + "_" + 题号 对齐
                     const firstCellMatch = cells[0].textContent.match(/\d+/);
                     if (firstCellMatch) {
-                        cells[0].dataset.matchId = firstCellMatch[0];
+                        const compositeId = `${exerciseUnitIndex}_${firstCellMatch[0]}`;
+                        cells[0].dataset.matchId = compositeId;
                         cells[0].classList.add('cursor-pointer', 'match-source', 'hover:bg-blue-100', 'p-2', 'border');
-                        console.log(`  源单元格: ID=${firstCellMatch[0]}`);
+                        console.log(`  源单元格: ID=${compositeId}`);
                     }
 
                     // 最后一列是目标（可能是第2列或第3列）
@@ -458,21 +463,23 @@ function createMatching(element) {
 
             console.log('点击事件:', {source: !!source, target: !!target, selectedSource: !!selectedSource});
 
-            if (source) {
-                // 选择源
-                if(selectedSource) selectedSource.classList.remove('bg-blue-200');
+            if (source && table.contains(source)) {
+                // 选择源（仅本表）
+                if (selectedSource && table.contains(selectedSource)) {
+                    selectedSource.classList.remove('bg-blue-200');
+                }
                 selectedSource = source;
                 selectedSource.classList.add('bg-blue-200');
                 console.log('已选择源:', selectedSource.dataset.matchId);
-            } else if (target && selectedSource) {
-                // 连接源和目标
+            } else if (target && selectedSource && table.contains(target) && table.contains(selectedSource)) {
+                // 连接源和目标（必须在同一张表内，且只在本表内查找已占用的目标）
                 const sourceId = selectedSource.dataset.matchId;
                 const rowId = selectedSource.closest('tr').dataset.rowId;
 
                 console.log(`连接: 源=${sourceId} -> 目标=${target.dataset.matchId}`);
 
-                const existingSelection = document.querySelector(`[data-match-row="${rowId}"]`);
-                if(existingSelection) {
+                const existingSelection = table.querySelector(`[data-match-row="${rowId}"]`);
+                if (existingSelection) {
                     existingSelection.classList.remove('bg-green-200', 'text-green-800', 'font-bold');
                     delete existingSelection.dataset.matchRow;
                 }
@@ -567,16 +574,15 @@ async function checkAllAnswers() {
     let totalQuestions = 0;
     let correctCount = 0;
 
-    // 检查填空题
-    document.querySelectorAll('[data-exercise="fill"]').forEach(input => {
+    // 检查填空题（正确答案按 DOM 顺序与 data-index 无关：index 因共用计数器会有空洞）
+    document.querySelectorAll('[data-exercise="fill"]').forEach((input, seqIdx) => {
         totalQuestions++;
         const userNorm = normalizeAnswer(input.value);
-        const correctAnswerRaw = correctAnswers.fill[input.dataset.index];
+        const correctAnswerRaw = correctAnswers.fill[seqIdx];
 
-        // 如果没有正确答案，跳过（不计分）
         if (!correctAnswerRaw) {
-            console.warn(`填空题 ${input.dataset.index}: 没有找到正确答案`);
-            totalQuestions--; // 不计入总题数
+            console.warn(`填空题 [顺序 ${seqIdx}] data-index=${input.dataset.index}: 没有找到正确答案`);
+            totalQuestions--;
             return;
         }
 
@@ -585,23 +591,27 @@ async function checkAllAnswers() {
         if (isCorrect) correctCount++;
         input.classList.toggle('correct', isCorrect);
         input.classList.toggle('incorrect', !isCorrect);
-        console.log(`填空题 ${input.dataset.index}: 用户="${userNorm}", 标准="${correctNorm}", 结果=${isCorrect}`);
+        console.log(`填空题 [${seqIdx}] 用户="${userNorm}", 标准="${correctNorm}", 结果=${isCorrect}`);
     });
 
-    // 检查选择题
-    document.querySelectorAll('[data-exercise="choice"]').forEach(span => {
+    // 检查选择题（同上，用顺序下标对齐 correctAnswers.choice）
+    document.querySelectorAll('[data-exercise="choice"]').forEach((span, seqIdx) => {
         totalQuestions++;
-        const index = span.dataset.index;
-        const selectedRadio = document.querySelector(`input[name="choice-${index}"]:checked`);
-        const resultSpan = span.nextElementSibling || document.createElement('span');
-        resultSpan.className = 'ml-2 font-bold';
-        if (!span.nextElementSibling) span.parentNode.appendChild(resultSpan);
+        const selectedRadio = span.querySelector('input[type="radio"]:checked');
+        let resultSpan = span.nextElementSibling;
+        if (resultSpan && !resultSpan.classList.contains('choice-check-mark')) {
+            resultSpan = null;
+        }
+        if (!resultSpan) {
+            resultSpan = document.createElement('span');
+            resultSpan.className = 'choice-check-mark ml-2 font-bold';
+            span.parentNode.insertBefore(resultSpan, span.nextSibling);
+        }
 
-        // 检查是否有对应的正确答案
-        const correctAnswerRaw = correctAnswers.choice[index];
+        const correctAnswerRaw = correctAnswers.choice[seqIdx];
         if (!correctAnswerRaw) {
-            console.warn(`选择题 ${index}: 没有找到正确答案`);
-            totalQuestions--; // 不计入总题数
+            console.warn(`选择题 [顺序 ${seqIdx}] data-index=${span.dataset.index}: 没有找到正确答案`);
+            totalQuestions--;
             return;
         }
 
@@ -609,11 +619,11 @@ async function checkAllAnswers() {
             const isCorrect = normalizeAnswer(selectedRadio.value) === normalizeAnswer(correctAnswerRaw);
             if (isCorrect) correctCount++;
             resultSpan.textContent = isCorrect ? '✓' : '✗';
-            resultSpan.className = isCorrect ? 'answer-correct' : 'answer-incorrect';
-            console.log(`选择题 ${index}: 用户="${normalizeAnswer(selectedRadio.value)}", 标准="${normalizeAnswer(correctAnswerRaw)}", 结果=${isCorrect}`);
+            resultSpan.className = `choice-check-mark ml-2 font-bold ${isCorrect ? 'answer-correct' : 'answer-incorrect'}`;
+            console.log(`选择题 [${seqIdx}] 用户="${normalizeAnswer(selectedRadio.value)}", 标准="${normalizeAnswer(correctAnswerRaw)}", 结果=${isCorrect}`);
         } else {
             resultSpan.textContent = '?';
-            resultSpan.className = 'answer-incorrect';
+            resultSpan.className = 'choice-check-mark ml-2 font-bold answer-incorrect';
         }
     });
 
