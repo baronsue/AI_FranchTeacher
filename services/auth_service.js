@@ -1,9 +1,15 @@
 // 认证服务 - 管理用户认证和令牌
 
-// 自动检测环境：GitHub Pages 使用 Render 生产 URL，本地开发使用 localhost
-const API_BASE_URL = window.location.hostname === 'baronsue.github.io'
-    ? 'https://ai-franchteacher-auth.onrender.com/api'
-    : 'http://localhost:3002/api';
+// 生产环境认证 API（部署到 Render 后，把下面改成你的认证服务地址 + /api）
+const AUTH_API_PRODUCTION = 'https://ai-franchteacher-auth.onrender.com/api';
+
+const isLocalFrontend =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
+
+const API_BASE_URL = isLocalFrontend
+    ? 'http://localhost:3002/api'
+    : AUTH_API_PRODUCTION;
 
 console.log('[Auth] API Base URL:', API_BASE_URL);
 

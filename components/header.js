@@ -1,7 +1,8 @@
 import { authService } from '../services/auth_service.js';
 
 function navigate(view) {
-    window.dispatchEvent(new CustomEvent('navigate', { detail: { view } }));
+    const path = view.startsWith('/') ? view : `/${view}`;
+    window.location.hash = `#${path}`;
 }
 
 function escapeHtml(value) {

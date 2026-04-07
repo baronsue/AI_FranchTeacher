@@ -92,14 +92,7 @@ function initializeApp() {
         // 初始化 header
         updateHeader();
 
-        // 监听自定义导航事件
-        window.addEventListener('navigate', (event) => {
-            const { view } = event.detail;
-            navigateTo(view, appContainer, routes);
-            updateHeader(); // 导航时更新 header
-        });
-
-        // 监听URL hash变化
+        // 监听URL hash变化（顶栏导航通过更新 hash 触发）
         window.addEventListener('hashchange', () => {
             const route = getRouteFromHash();
             navigateTo(route, appContainer, routes);

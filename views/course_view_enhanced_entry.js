@@ -74,6 +74,7 @@ function createGameTopBar() {
     const badges = getUserBadges();
 
     const topBar = document.createElement('div');
+    topBar.id = 'enhanced-game-top-bar';
     topBar.className = 'bg-white rounded-2xl shadow-lg p-4';
     topBar.innerHTML = `
         <div class="flex items-center justify-between flex-wrap gap-4">
@@ -255,7 +256,7 @@ function createCourseSidebar() {
  * 更新游戏化顶部栏
  */
 function updateGameTopBar() {
-    const topBar = document.querySelector('.bg-white.rounded-2xl.shadow-lg.p-4');
+    const topBar = document.getElementById('enhanced-game-top-bar');
     if (topBar) {
         const newTopBar = createGameTopBar();
         topBar.replaceWith(newTopBar);
