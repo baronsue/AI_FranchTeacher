@@ -205,6 +205,33 @@ if (synth) {
     }
 }
 
+/** 部分移动端 voiceURI 为空，用稳定键选中 */
+const VOICE_PICK_SEP = '|';
+export function voiceSelectValue(voice) {
+    if (!voice) return '';
+    if (voice.voiceURI) return voice.voiceURI;
+    return `__v__${encodeURIComponent(voice.name)}${VOICE_PICK_SEP}${encodeURIComponent(voice.lang)}`;
+}
+
+export function resolveVoiceFromSelectValue(value, list = voices) {
+    if (!value || !list || list.length === 0) return null;
+    const byUri = list.find(v => v.voiceURI && v.voiceURI === value);
+    if (byUri) return byUri;
+    if (value.startsWith('__v__')) {
+        const raw = value.slice(4);
+        const i = raw.indexOf(VOICE_PICK_SEP);
+        if (i === -1) return null;
+        try {
+            const name = decodeURIComponent(raw.slice(0, i));
+            const lang = decodeURIComponent(raw.slice(i + 1));
+            return list.find(v => v.name === name && v.lang === lang) || null;
+        } catch (_) {
+            return null;
+        }
+    }
+    return null;
+}
+
 /**
  * 智能分割混合语言文本
  * 将文本分为法语部分和中文部分（通常在括号里）
@@ -274,9 +301,8 @@ function speakSingleLanguage(text, options = {}) {
 
     let selectedVoice = null;
 
-    // 优先使用用户指定的语音
     if (voiceURI) {
-        selectedVoice = voices.find(v => v.voiceURI === voiceURI);
+        selectedVoice = resolveVoiceFromSelectValue(voiceURI, voices);
     }
 
     // 根据语言选择最佳语音
@@ -347,8 +373,11 @@ export function speak(text, options = {}) {
 
     unlockSpeechSynthesis();
 
-    // 等待语音加载
-    if (!voicesLoaded) {
+    const freshVoices = synth.getVoices();
+    if (freshVoices.length > 0) {
+        voices = freshVoices;
+        voicesLoaded = true;
+    } else if (!voicesLoaded) {
         getVoices();
     }
 
@@ -402,16 +431,24 @@ export function speak(text, options = {}) {
 
 // 导出获取可用语音列表的函数
 export function getAvailableFrenchVoices() {
-    // 确保语音已加载
-    if (voices.length === 0) {
+    if (!synth) return [];
+    const list = synth.getVoices();
+    if (list.length > 0) {
+        voices = list;
+        voicesLoaded = true;
+    } else if (voices.length === 0) {
         getVoices();
     }
     return voices.filter(voice => voice.lang && voice.lang.toLowerCase().startsWith('fr'));
 }
 
 export function getAvailableChineseVoices() {
-    // 确保语音已加载
-    if (voices.length === 0) {
+    if (!synth) return [];
+    const list = synth.getVoices();
+    if (list.length > 0) {
+        voices = list;
+        voicesLoaded = true;
+    } else if (voices.length === 0) {
         getVoices();
     }
     return voices.filter(voice => voice.lang && voice.lang.toLowerCase().startsWith('zh'));

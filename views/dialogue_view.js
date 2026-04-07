@@ -2,7 +2,8 @@ import {
     speak,
     getAvailableFrenchVoices,
     unlockSpeechSynthesis,
-    prefersCoarsePointer
+    prefersCoarsePointer,
+    voiceSelectValue
 } from '../services/speech_service.js';
 import { recognition } from '../services/speech_service.js';
 import { generateAIResponse, checkAPIAvailability, AI_PROVIDERS, setAIProvider, getCurrentProvider } from '../services/ai_service.js';
@@ -16,19 +17,6 @@ let useAI = true; // 是否使用 AI（可切换到规则模式）
 let aiConversationHistory = []; // AI 对话历史
 /** 触摸设备上欢迎语延后到首次用户手势后再朗读（避免无声音） */
 let pendingDialogueWelcomeTTS = null;
-
-function isNarrowViewport() {
-    if (typeof window === 'undefined') return false;
-    try {
-        return window.matchMedia('(max-width: 767.98px)').matches;
-    } catch (_) {
-        return window.innerWidth <= 768;
-    }
-}
-
-function dialogueTouchLikeUi() {
-    return prefersCoarsePointer() || isNarrowViewport();
-}
 
 function renderChatMessage(message, sender, useTypingEffect = false) {
     const chatLog = document.getElementById('chat-log');
@@ -68,31 +56,6 @@ function renderChatMessage(message, sender, useTypingEffect = false) {
     }
 
     chatLog.scrollTop = chatLog.scrollHeight;
-
-    if (!isUser) {
-        const bubble = messageTextEl.parentElement;
-        const row = document.createElement('div');
-        row.className = 'flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-100';
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className =
-            'inline-flex items-center justify-center gap-2 text-sm font-medium text-purple-800 bg-purple-100 active:bg-purple-200 px-4 min-h-[48px] rounded-xl shrink-0 w-full sm:w-auto border border-purple-300';
-        btn.style.touchAction = 'manipulation';
-        btn.setAttribute('aria-label', '收听本条法语朗读');
-        btn.innerHTML = '<i data-lucide="volume-2" class="w-5 h-5 shrink-0"></i><span>收听朗读</span>';
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            unlockSpeechSynthesis();
-            speakWithIndicator(message, { userActivation: true, skipChinese: true });
-        });
-        row.appendChild(btn);
-        bubble.appendChild(row);
-        if (typeof lucide !== 'undefined' && lucide.createIcons) {
-            lucide.createIcons();
-        }
-    }
-
     return messageEl;
 }
 
@@ -253,12 +216,11 @@ function getRuleBasedResponse(userInput) {
     // 使用打字效果渲染AI回复
     renderChatMessage(response, 'ai', true);
 
-    if (!dialogueTouchLikeUi()) {
-        const typingDuration = response.length * 30;
-        setTimeout(() => {
-            speakWithIndicator(response);
-        }, Math.min(typingDuration * 0.3, 500));
-    }
+    // 延迟播放语音，等待打字效果开始
+    const typingDuration = response.length * 30; // 计算打字所需时间
+    setTimeout(() => {
+        speakWithIndicator(response);
+    }, Math.min(typingDuration * 0.3, 500)); // 在打字进行30%时开始播放，最多延迟500ms
 }
 
 // 使用 AI 生成回复（新增）
@@ -326,15 +288,14 @@ function removeTypingIndicator() {
     }
 }
 
-function speakWithIndicator(text, opts = {}) {
+// 带视觉指示器的语音播放函数
+function speakWithIndicator(text) {
     const indicator = document.getElementById('speech-indicator');
 
     speak(text, {
         lang: 'fr-FR',
         rate: speechRate,
         voiceURI: selectedVoiceURI,
-        userActivation: Boolean(opts.userActivation),
-        skipChinese: Boolean(opts.skipChinese),
         onstart: () => {
             isSpeaking = true;
             if (indicator) {
@@ -601,6 +562,7 @@ export function renderDialogueMode(container) {
                     <select id="voice-selector" class="w-full min-w-0 sm:flex-1 sm:max-w-md text-base sm:text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         <option value="">自动选择（推荐）</option>
                     </select>
+                    <p id="voice-google-hint" class="hidden text-[11px] leading-snug text-gray-500 mt-1 w-full sm:max-w-md min-w-0"></p>
                 </div>
                 
                 <!-- 语速控制 -->
@@ -620,7 +582,7 @@ export function renderDialogueMode(container) {
             </div>
 
             <p id="dialogue-speech-hint" class="hidden text-xs text-center text-amber-800 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-2" role="note">
-                手机或窄屏：点气泡下「收听朗读」。宽屏电脑会自动朗读；若无声可点「收听朗读」。
+                手机/平板：每条 AI 回复下方点「收听朗读」即可听法语；欢迎语在首次轻触屏幕后播放。
             </p>
             <div id="chat-log" class="flex-1 min-h-[200px] bg-white/50 p-3 sm:p-4 rounded-t-2xl overflow-y-auto overflow-x-hidden overscroll-contain h-[min(58dvh,calc(100dvh-19rem))] md:h-[calc(100vh-330px)] md:max-h-[calc(100vh-280px)]">
                 <!-- Chat messages will appear here -->
@@ -644,16 +606,17 @@ export function renderDialogueMode(container) {
     lucide.createIcons();
 
     const speechHint = document.getElementById('dialogue-speech-hint');
-    if (speechHint && dialogueTouchLikeUi()) {
+    if (speechHint && prefersCoarsePointer()) {
         speechHint.classList.remove('hidden');
     }
 
     function onDialogueFirstInteraction() {
         unlockSpeechSynthesis();
+        populateVoiceSelector();
         if (pendingDialogueWelcomeTTS) {
             const msg = pendingDialogueWelcomeTTS;
             pendingDialogueWelcomeTTS = null;
-            speakWithIndicator(msg, { userActivation: true });
+            speakWithIndicator(msg);
         }
     }
 
@@ -661,9 +624,6 @@ export function renderDialogueMode(container) {
     dialogueRoot.addEventListener('pointerdown', onDialogueFirstInteraction, { capture: true, passive: true });
     const chatInputForUnlock = document.getElementById('chat-input');
     chatInputForUnlock.addEventListener('focus', onDialogueFirstInteraction);
-    chatInputForUnlock.addEventListener('touchstart', onDialogueFirstInteraction, { passive: true });
-    chatInputForUnlock.addEventListener('touchend', onDialogueFirstInteraction, { passive: true });
-    chatInputForUnlock.addEventListener('click', onDialogueFirstInteraction);
 
     // 初始化语音选择器
     const voiceSelector = document.getElementById('voice-selector');
@@ -684,7 +644,7 @@ export function renderDialogueMode(container) {
 
             frenchVoices.forEach(voice => {
                 const option = document.createElement('option');
-                option.value = voice.voiceURI || '';
+                option.value = voiceSelectValue(voice);
                 const badge = voice.localService ? '本地' : '云端';
                 const quality = voice.name.includes('Google') ? '⭐优质' :
                     voice.name.includes('Microsoft') ? '⭐推荐' : '';
@@ -693,15 +653,38 @@ export function renderDialogueMode(container) {
             });
 
             console.log(`Loaded ${frenchVoices.length} French voices`);
+
+            const vHint = document.getElementById('voice-google-hint');
+            if (vHint) {
+                if (frenchVoices.length > 0 && !frenchVoices.some(v => /google/i.test(v.name))) {
+                    const isAppleMobile =
+                        /iPhone|iPad|iPod/i.test(navigator.userAgent || '') ||
+                        (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+                    vHint.textContent = isAppleMobile
+                        ? '在 iPhone/iPad 上，即使用 Chrome 打开，系统仍强制使用与 Safari 相同的 WebKit 引擎，苹果不向网页提供 Google 云端法语朗读，下拉中只有系统法语（如 Amélie 等）。若需要「Google français」类音色，请在 Windows/Mac 的 Chrome 或 Android 手机的 Chrome 上使用本站。'
+                        : '当前浏览器未列出名称含 Google 的法语语音。Android 请用 Chrome，稍等或轻触屏幕后再打开列表；仍没有时请检查系统语言与网络。';
+                    vHint.classList.remove('hidden');
+                } else {
+                    vHint.textContent = '';
+                    vHint.classList.add('hidden');
+                }
+            }
         } catch (error) {
             console.error('Error populating voice selector:', error);
         }
     }
 
-    // 延迟加载语音列表，并在语音变化时重新加载
-    setTimeout(populateVoiceSelector, 500);
+    // 移动端语音常延迟返回：多次尝试 + 与 speech_service 的 onvoiceschanged 链式调用（勿覆盖）
+    [0, 400, 1200, 2500].forEach((ms) => setTimeout(populateVoiceSelector, ms));
     if (window.speechSynthesis) {
-        window.speechSynthesis.onvoiceschanged = populateVoiceSelector;
+        const syn = window.speechSynthesis;
+        const prevHandler = syn.onvoiceschanged;
+        syn.onvoiceschanged = function voicesChangedChain() {
+            if (typeof prevHandler === 'function') {
+                prevHandler.call(syn);
+            }
+            populateVoiceSelector();
+        };
     }
 
     voiceSelector.addEventListener('change', (e) => {
@@ -780,13 +763,13 @@ export function renderDialogueMode(container) {
             );
         });
 
-    const welcomeMessage = "Bonjour ! Bienvenue dans le mode dialogue. Pose-moi une question en français pour commencer.";
-    if (dialogueTouchLikeUi()) {
-        pendingDialogueWelcomeTTS = welcomeMessage;
-    }
+    // 欢迎消息（触摸设备上朗读延后到首次 pointerdown/focus，否则 Safari 等会静音）
     setTimeout(() => {
+        const welcomeMessage = "Bonjour ! Bienvenue dans le mode dialogue. Pose-moi une question en français pour commencer.";
         renderChatMessage(welcomeMessage, 'ai', true);
-        if (!dialogueTouchLikeUi()) {
+        if (prefersCoarsePointer()) {
+            pendingDialogueWelcomeTTS = welcomeMessage;
+        } else {
             setTimeout(() => speakWithIndicator(welcomeMessage), 500);
         }
     }, 200);
