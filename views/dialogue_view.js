@@ -21,7 +21,7 @@ function renderChatMessage(message, sender, useTypingEffect = false) {
         ? `<div class="w-10 h-10 rounded-full flex-shrink-0 bg-blue-500 flex items-center justify-center font-bold text-white order-2">VOUS</div>`
         : `<img src="https://r2.flowith.net/files/png/Y6F4R-ai_french_teacher_avatar_index_1@1024x1024.png" class="w-10 h-10 rounded-full flex-shrink-0 order-1" alt="Aurélie">`;
 
-    const messageBubbleClass = `max-w-xs md:max-w-md p-3 rounded-2xl ${isUser ? 'bg-blue-500 text-white order-1' : 'bg-white text-gray-800 order-2'}`;
+    const messageBubbleClass = `max-w-[min(20rem,85vw)] sm:max-w-md min-w-0 p-3 rounded-2xl break-words [overflow-wrap:anywhere] ${isUser ? 'bg-blue-500 text-white order-1' : 'bg-white text-gray-800 order-2'}`;
     const messageBubble = `<div class="${messageBubbleClass}"><span class="message-text"></span></div>`;
 
     messageEl.innerHTML = avatar + messageBubble;
@@ -516,70 +516,72 @@ function showAPIConfigModal() {
 
 export function renderDialogueMode(container) {
     container.innerHTML = `
-        <div class="h-full flex flex-col max-w-3xl mx-auto">
+        <div class="h-full min-h-0 flex flex-col max-w-3xl mx-auto w-full min-w-0 px-0 sm:px-1">
             <!-- 语音播放指示器 -->
-            <div id="speech-indicator" class="hidden items-center justify-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg mb-2 shadow-lg">
-                <i data-lucide="volume-2" class="w-5 h-5 animate-pulse"></i>
-                <span class="text-sm font-medium">Aurélie 正在说话...</span>
+            <div id="speech-indicator" class="hidden items-center justify-center gap-2 bg-purple-500 text-white px-3 sm:px-4 py-2 rounded-lg mb-2 shadow-lg text-center">
+                <i data-lucide="volume-2" class="w-5 h-5 animate-pulse shrink-0"></i>
+                <span class="text-xs sm:text-sm font-medium truncate">Aurélie 正在说话...</span>
             </div>
 
             <!-- 语音控制面板 -->
-            <div class="bg-white/80 p-3 rounded-xl mb-2 shadow-sm space-y-3">
+            <div class="bg-white/80 p-2 sm:p-3 rounded-xl mb-2 shadow-sm space-y-3 min-w-0">
                 <!-- AI 配置区 -->
-                <div class="flex items-center justify-between gap-4 pb-3 border-b border-gray-200">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="brain" class="w-4 h-4 text-gray-700"></i>
-                        <span class="text-sm font-medium text-gray-700">AI 智能模式:</span>
-                        <label class="relative inline-flex items-center cursor-pointer">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-gray-200 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 min-w-0">
+                        <i data-lucide="brain" class="w-4 h-4 text-gray-700 shrink-0"></i>
+                        <span class="text-xs sm:text-sm font-medium text-gray-700 shrink-0">AI 智能模式:</span>
+                        <label class="relative inline-flex items-center cursor-pointer shrink-0">
                             <input type="checkbox" id="ai-mode-toggle" class="sr-only peer" checked>
                             <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                            <span class="ml-3 text-xs text-gray-500" id="ai-mode-label">已启用</span>
+                            <span class="ml-2 sm:ml-3 text-xs text-gray-500" id="ai-mode-label">已启用</span>
                         </label>
                     </div>
-                    <button id="config-ai-btn" class="px-3 py-1 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1">
+                    <button type="button" id="config-ai-btn" class="w-full sm:w-auto px-3 py-2 text-xs bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-1 shrink-0">
                         <i data-lucide="settings" class="w-3 h-3"></i>
                         配置 API
                     </button>
                 </div>
                 
                 <!-- 语音选择 -->
-                <div class="flex items-center justify-between gap-4">
-                    <label class="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+                    <label class="text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-2 shrink-0">
                         <i data-lucide="audio-lines" class="w-4 h-4"></i>
                         选择语音:
                     </label>
-                    <select id="voice-selector" class="flex-grow max-w-xs text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <select id="voice-selector" class="w-full min-w-0 sm:flex-1 sm:max-w-md text-base sm:text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         <option value="">自动选择（推荐）</option>
                     </select>
                 </div>
                 
                 <!-- 语速控制 -->
-                <div class="flex items-center justify-between gap-4">
-                    <label class="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+                    <label class="text-xs sm:text-sm font-medium text-gray-700 flex items-center gap-2 shrink-0">
                         <i data-lucide="gauge" class="w-4 h-4"></i>
                         语速调节:
                     </label>
-                    <div class="flex items-center gap-3 flex-grow max-w-xs">
-                        <span class="text-xs text-gray-500">慢</span>
+                    <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 w-full sm:max-w-md">
+                        <span class="text-xs text-gray-500 shrink-0">慢</span>
                         <input type="range" id="speech-rate-slider" min="0.5" max="1.2" step="0.05" value="0.85"
-                               class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500">
-                        <span class="text-xs text-gray-500">快</span>
-                        <span id="rate-display" class="text-sm font-semibold text-blue-600 min-w-[3rem] text-center">0.85x</span>
+                               class="flex-1 min-w-0 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                        <span class="text-xs text-gray-500 shrink-0">快</span>
+                        <span id="rate-display" class="text-xs sm:text-sm font-semibold text-blue-600 min-w-[2.75rem] text-center shrink-0">0.85x</span>
                     </div>
                 </div>
             </div>
 
-            <div id="chat-log" class="flex-grow bg-white/50 p-4 rounded-t-2xl overflow-y-auto h-[calc(100vh-330px)]">
+            <div id="chat-log" class="flex-1 min-h-[200px] bg-white/50 p-3 sm:p-4 rounded-t-2xl overflow-y-auto overflow-x-hidden overscroll-contain h-[min(58dvh,calc(100dvh-19rem))] md:h-[calc(100vh-330px)] md:max-h-[calc(100vh-280px)]">
                 <!-- Chat messages will appear here -->
             </div>
-            <div class="bg-white p-4 rounded-b-2xl shadow-lg border-t border-gray-200">
-                <div class="flex items-center gap-4">
-                    <input type="text" id="chat-input" class="flex-grow w-full border-gray-300 rounded-full py-3 px-5 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="输入你的消息...">
-                    <button id="send-btn" class="p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
-                        <i data-lucide="send" class="w-6 h-6"></i>
+            <div class="bg-white p-2 sm:p-4 rounded-b-2xl shadow-lg border-t border-gray-200 shrink-0">
+                <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <input type="text" id="chat-input" inputmode="text" autocomplete="off"
+                           class="flex-1 min-w-0 border border-gray-300 rounded-full py-2.5 sm:py-3 px-4 sm:px-5 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                           placeholder="输入你的消息...">
+                    <button type="button" id="send-btn" class="p-2.5 sm:p-3 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition shrink-0" title="发送">
+                        <i data-lucide="send" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                     </button>
-                    <button id="mic-btn" class="p-3 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
-                        <i data-lucide="mic" class="w-6 h-6"></i>
+                    <button type="button" id="mic-btn" class="p-2.5 sm:p-3 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition shrink-0" title="语音输入">
+                        <i data-lucide="mic" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                     </button>
                 </div>
             </div>

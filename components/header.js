@@ -30,15 +30,15 @@ export function createHeader() {
     const safeAvatar = user ? escapeHtml(user.avatar || '🎓') : '';
 
     header.innerHTML = `
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-20">
-                <div class="flex items-center cursor-pointer" id="home-link">
-                    <img class="h-10 w-auto" src="https://r2.flowith.net/files/png/QE1EX-french_language_learning_app_logo_index_2@1024x1024.png" alt="App Logo">
-                    <span class="ml-3 text-2xl font-bold text-[#333]">Aurélie</span>
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-w-0">
+            <div class="flex items-center justify-between gap-2 h-16 sm:h-20 min-w-0">
+                <div class="flex items-center cursor-pointer min-w-0 shrink gap-2 sm:gap-3" id="home-link">
+                    <img class="h-8 w-8 sm:h-10 sm:w-auto shrink-0 rounded-lg object-cover" src="https://r2.flowith.net/files/png/QE1EX-french_language_learning_app_logo_index_2@1024x1024.png" alt="App Logo">
+                    <span class="text-lg sm:text-2xl font-bold text-[#333] truncate">Aurélie</span>
                 </div>
 
                 ${isAuthenticated ? `
-                    <nav class="hidden md:flex items-center space-x-8">
+                    <nav class="hidden md:flex items-center space-x-6 lg:space-x-8 shrink-0">
                         <a href="#" id="nav-dashboard" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">学习面板</a>
                         <a href="#" id="nav-course" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">课程模式</a>
                         <a href="#" id="nav-dialogue" class="text-gray-600 hover:text-blue-600 font-medium transition-colors">对话模式</a>
@@ -51,22 +51,22 @@ export function createHeader() {
                     </button>
                 ` : ''}
 
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center gap-1 sm:gap-3 shrink-0 min-w-0">
                     ${isAuthenticated ? `
                         <!-- 用户信息 -->
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm font-medium text-gray-600 hidden sm:block">
+                        <div class="flex items-center gap-1 sm:gap-2 min-w-0 max-w-[40vw] sm:max-w-none">
+                            <span class="text-xs sm:text-sm font-medium text-gray-600 truncate hidden sm:block max-w-[120px] md:max-w-[200px]" title="${safeDisplayName}">
                                 ${safeDisplayName}
                             </span>
-                            <div class="text-2xl">${safeAvatar || '🎓'}</div>
+                            <div class="text-xl sm:text-2xl shrink-0" aria-hidden="true">${safeAvatar || '🎓'}</div>
                         </div>
                         <!-- 登出按钮 -->
-                        <button id="logout-btn" class="text-sm text-gray-600 hover:text-red-600 font-medium transition-colors">
+                        <button type="button" id="logout-btn" class="p-2 text-gray-600 hover:text-red-600 transition-colors shrink-0" title="登出">
                             <i data-lucide="log-out" class="w-5 h-5"></i>
                         </button>
                     ` : `
                         <!-- 未登录状态 -->
-                        <span class="text-sm font-medium text-gray-600">你的AI法语老师</span>
+                        <span class="text-xs sm:text-sm font-medium text-gray-600 truncate max-w-[32vw] sm:max-w-none">你的AI法语老师</span>
                     `}
                 </div>
             </div>

@@ -149,7 +149,8 @@ async function loadCourseContent(container) {
         parseForInteractivity(contentWrapper);
         
         const courseContainer = document.createElement('div');
-        courseContainer.className = 'bg-white p-6 sm:p-8 rounded-2xl shadow-lg prose max-w-none';
+        courseContainer.className =
+            'bg-white p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg prose prose-sm sm:prose-base max-w-none min-w-0 w-full overflow-x-auto break-words [overflow-wrap:anywhere]';
         courseContainer.appendChild(contentWrapper);
 
         container.innerHTML = '';

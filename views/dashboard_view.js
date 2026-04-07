@@ -226,65 +226,65 @@ export async function renderDashboard(container) {
     const calendarHtml = generateActivityCalendarHTML(checkinList);
 
     container.innerHTML = `
-        <div class="space-y-10" data-dashboard-root>
-            <div>
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">学习统计</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div class="bg-white rounded-xl shadow-sm p-6 flex items-center">
-                        <div class="p-3 bg-blue-100 rounded-full">
-                            <i data-lucide="clock" class="w-7 h-7 text-blue-600"></i>
+        <div class="space-y-8 sm:space-y-10 min-w-0 max-w-full" data-dashboard-root>
+            <div class="min-w-0">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">学习统计</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 flex items-start sm:items-center gap-3 min-w-0">
+                        <div class="p-2 sm:p-3 bg-blue-100 rounded-full shrink-0">
+                            <i data-lucide="clock" class="w-6 h-6 sm:w-7 sm:h-7 text-blue-600"></i>
                         </div>
-                        <div class="ml-4">
+                        <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-500">累计学习</p>
-                            <p class="text-2xl font-semibold text-gray-800">${formatStudyTimeMinutes(studyMinutes)}</p>
+                            <p class="text-lg sm:text-2xl font-semibold text-gray-800 break-words">${formatStudyTimeMinutes(studyMinutes)}</p>
                             <p class="text-xs text-gray-400 mt-1">云端按分钟累计</p>
                         </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm p-6 flex items-center">
-                        <div class="p-3 bg-green-100 rounded-full">
-                            <i data-lucide="book-copy" class="w-7 h-7 text-green-600"></i>
+                    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 flex items-start sm:items-center gap-3 min-w-0">
+                        <div class="p-2 sm:p-3 bg-green-100 rounded-full shrink-0">
+                            <i data-lucide="book-copy" class="w-6 h-6 sm:w-7 sm:h-7 text-green-600"></i>
                         </div>
-                        <div class="ml-4">
+                        <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-500">已学单词</p>
-                            <p class="text-2xl font-semibold text-gray-800">${wordsLearned} 个</p>
+                            <p class="text-lg sm:text-2xl font-semibold text-gray-800">${wordsLearned} 个</p>
                         </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm p-6 flex items-center">
-                        <div class="p-3 bg-yellow-100 rounded-full">
-                           <i data-lucide="pie-chart" class="w-7 h-7 text-yellow-600"></i>
+                    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 flex items-start sm:items-center gap-3 min-w-0">
+                        <div class="p-2 sm:p-3 bg-yellow-100 rounded-full shrink-0">
+                           <i data-lucide="pie-chart" class="w-6 h-6 sm:w-7 sm:h-7 text-yellow-600"></i>
                         </div>
-                        <div class="ml-4">
+                        <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-500">课程完成度</p>
-                            <p class="text-2xl font-semibold text-gray-800">${completionRate}%</p>
-                            <p class="text-xs text-gray-400 mt-1">已完成 ${coursesDone} / ${coursesTotal} 课（练习或进度）</p>
+                            <p class="text-lg sm:text-2xl font-semibold text-gray-800">${completionRate}%</p>
+                            <p class="text-xs text-gray-400 mt-1 break-words">已完成 ${coursesDone} / ${coursesTotal} 课（练习或进度）</p>
                         </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm p-6 flex items-center">
-                        <div class="p-3 bg-violet-100 rounded-full">
-                            <i data-lucide="sparkles" class="w-7 h-7 text-violet-600"></i>
+                    <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 flex items-start sm:items-center gap-3 min-w-0">
+                        <div class="p-2 sm:p-3 bg-violet-100 rounded-full shrink-0">
+                            <i data-lucide="sparkles" class="w-6 h-6 sm:w-7 sm:h-7 text-violet-600"></i>
                         </div>
-                        <div class="ml-4">
+                        <div class="min-w-0 flex-1">
                             <p class="text-sm text-gray-500">学习积分</p>
-                            <p class="text-2xl font-semibold text-gray-800">${totalPoints}</p>
+                            <p class="text-lg sm:text-2xl font-semibold text-gray-800">${totalPoints}</p>
                             <p class="text-xs text-gray-400 mt-1">今日 +${todayPoints}</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div>
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">学习日历</h2>
+            <div class="min-w-0">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">学习日历</h2>
                 <p class="text-sm text-gray-500 mb-2">基于账户打卡记录（最近约 15 周）</p>
-                <div class="bg-white rounded-xl shadow-sm p-6 overflow-x-auto">
+                <div class="bg-white rounded-xl shadow-sm p-4 sm:p-6 overflow-x-auto overscroll-x-contain">
                     <div class="activity-grid">
                         ${calendarHtml}
                     </div>
                 </div>
             </div>
 
-            <div>
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">成就徽章</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="min-w-0">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">成就徽章</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     ${badgeList.length > 0 ? badgeList.map((badge) => {
                         const name = badge.badge_name || badge.badgeName || '徽章';
                         const icon = badge.badge_icon || badge.badgeIcon || '🏆';

@@ -15,8 +15,8 @@ export class AuthView {
         const isLogin = this.mode === 'login';
 
         this.container.innerHTML = `
-            <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
-                <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-lg">
+            <div class="min-h-[100dvh] flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-6 sm:py-12 px-3 sm:px-6 lg:px-8">
+                <div class="max-w-md w-full min-w-0 space-y-6 sm:space-y-8 bg-white p-4 sm:p-8 rounded-lg shadow-lg">
                     <!-- Logo和标题 -->
                     <div class="text-center">
                         <div class="flex justify-center mb-4">
@@ -24,7 +24,7 @@ export class AuthView {
                                 🎓
                             </div>
                         </div>
-                        <h2 class="text-3xl font-extrabold text-gray-900">
+                        <h2 class="text-2xl sm:text-3xl font-extrabold text-gray-900 break-words">
                             AI FranchTeacher
                         </h2>
                         <p class="mt-2 text-sm text-gray-600">
@@ -45,7 +45,7 @@ export class AuthView {
                                         显示名称
                                     </label>
                                     <input id="displayName" name="displayName" type="text"
-                                           class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                           class="appearance-none rounded-md relative block w-full min-w-0 px-3 py-2.5 border border-gray-300 placeholder-gray-500 text-gray-900 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                                            placeholder="您的名字">
                                 </div>
                             ` : ''}
@@ -55,7 +55,7 @@ export class AuthView {
                                     用户名 ${isLogin ? '或邮箱' : ''}
                                 </label>
                                 <input id="username" name="username" type="text" required
-                                       class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                       class="appearance-none rounded-md relative block w-full min-w-0 px-3 py-2.5 border border-gray-300 placeholder-gray-500 text-gray-900 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                                        placeholder="${isLogin ? '用户名或邮箱' : '用户名（仅字母、数字、下划线）'}">
                             </div>
 
@@ -65,7 +65,7 @@ export class AuthView {
                                         邮箱
                                     </label>
                                     <input id="email" name="email" type="email" required
-                                           class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                           class="appearance-none rounded-md relative block w-full min-w-0 px-3 py-2.5 border border-gray-300 placeholder-gray-500 text-gray-900 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                                            placeholder="your@email.com">
                                 </div>
                             ` : ''}
@@ -75,7 +75,7 @@ export class AuthView {
                                     密码
                                 </label>
                                 <input id="password" name="password" type="password" required
-                                       class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                       class="appearance-none rounded-md relative block w-full min-w-0 px-3 py-2.5 border border-gray-300 placeholder-gray-500 text-gray-900 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                                        placeholder="${isLogin ? '密码' : '至少6个字符'}">
                             </div>
 
@@ -85,7 +85,7 @@ export class AuthView {
                                         确认密码
                                     </label>
                                     <input id="confirmPassword" name="confirmPassword" type="password" required
-                                           class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                           class="appearance-none rounded-md relative block w-full min-w-0 px-3 py-2.5 border border-gray-300 placeholder-gray-500 text-gray-900 text-base focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                                            placeholder="再次输入密码">
                                 </div>
                             ` : ''}

@@ -10,9 +10,16 @@
     --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
+html {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+}
+
 body {
     scrollbar-width: thin;
     scrollbar-color: var(--brand-blue) var(--background-light);
+    overflow-x: hidden;
+    max-width: 100vw;
 }
 
 body::-webkit-scrollbar {
@@ -54,15 +61,29 @@ body::-webkit-scrollbar-thumb {
     margin-bottom: 1rem;
 }
 
+.prose {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
 .prose table {
     width: 100%;
+    max-width: 100%;
     margin-top: 1em;
     margin-bottom: 1em;
+    border-collapse: collapse;
+    table-layout: auto;
 }
 
 .prose td, .prose th {
     border: 1px solid var(--border-color);
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.75rem;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    vertical-align: top;
+    hyphens: auto;
 }
 
 .prose th {
@@ -173,11 +194,25 @@ body::-webkit-scrollbar-thumb {
     font-size: 16px !important; /* 防止 iOS 自动缩放 */
   }
   
-  /* 课程内容表格响应式 */
-  .prose table {
-    display: block;
+  .prose img,
+  .prose video {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .prose pre {
     overflow-x: auto;
-    white-space: nowrap;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* 平板：略收紧内边距 */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .prose td,
+  .prose th {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.9rem;
   }
 }
 

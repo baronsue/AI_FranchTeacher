@@ -125,50 +125,42 @@ async function getTopBarModelRemote() {
 
 function buildTopBarInnerHTML(model) {
     return `
-        <div class="flex items-center justify-between flex-wrap gap-4">
-            <div class="flex items-center gap-3">
-                <div class="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-2xl">
-                    ⭐
+        <div class="flex flex-col gap-3 min-w-0">
+            <div class="flex flex-wrap items-center justify-center sm:justify-between gap-3 sm:gap-4 min-w-0">
+                <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 min-w-0 flex-1">
+                    <div class="flex items-center gap-2 shrink-0">
+                        <div class="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-lg sm:text-2xl">⭐</div>
+                        <div class="min-w-0">
+                            <div class="text-lg sm:text-2xl font-bold text-gray-900 tabular-nums">${model.total}</div>
+                            <div class="text-xs sm:text-sm text-gray-600">总积分</div>
+                        </div>
+                        <div class="px-2 py-0.5 sm:px-3 sm:py-1 bg-blue-100 text-blue-700 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap">今日 +${model.today}</div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <div class="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-red-400 to-pink-500 rounded-full flex items-center justify-center text-lg sm:text-2xl">🔥</div>
+                        <div class="min-w-0">
+                            <div class="text-lg sm:text-2xl font-bold text-gray-900 tabular-nums">${model.streak}</div>
+                            <div class="text-xs sm:text-sm text-gray-600">连续天数</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 cursor-pointer hover:bg-purple-50 p-1.5 sm:p-2 rounded-lg transition shrink-0" id="badges-display">
+                        <div class="w-9 h-9 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center text-lg sm:text-2xl">🏆</div>
+                        <div class="min-w-0">
+                            <div class="text-lg sm:text-2xl font-bold text-gray-900 tabular-nums">${model.badgeCount}</div>
+                            <div class="text-xs sm:text-sm text-gray-600">获得徽章</div>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <div class="text-2xl font-bold text-gray-900">${model.total}</div>
-                    <div class="text-sm text-gray-600">总积分</div>
+                <div class="flex flex-wrap items-center justify-center gap-2 w-full sm:w-auto shrink-0">
+                    <button id="daily-checkin-btn" type="button" class="flex-1 sm:flex-none min-w-0 px-3 sm:px-4 py-2 text-sm bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center justify-center gap-2">
+                        <i data-lucide="check-circle" class="w-4 h-4 shrink-0"></i>
+                        <span class="truncate">每日打卡</span>
+                    </button>
+                    <button id="leaderboard-btn" type="button" class="flex-1 sm:flex-none min-w-0 px-3 sm:px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                        <i data-lucide="trophy" class="w-4 h-4 shrink-0"></i>
+                        <span class="truncate">排行榜</span>
+                    </button>
                 </div>
-                <div class="ml-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                    今日 +${model.today}
-                </div>
-            </div>
-
-            <div class="flex items-center gap-3">
-                <div class="w-12 h-12 bg-gradient-to-br from-red-400 to-pink-500 rounded-full flex items-center justify-center text-2xl">
-                    🔥
-                </div>
-                <div>
-                    <div class="text-2xl font-bold text-gray-900">${model.streak}</div>
-                    <div class="text-sm text-gray-600">连续天数</div>
-                </div>
-            </div>
-
-            <div class="flex items-center gap-3 cursor-pointer hover:bg-purple-50 p-2 rounded-lg transition"
-                id="badges-display">
-                <div class="w-12 h-12 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center text-2xl">
-                    🏆
-                </div>
-                <div>
-                    <div class="text-2xl font-bold text-gray-900">${model.badgeCount}</div>
-                    <div class="text-sm text-gray-600">获得徽章</div>
-                </div>
-            </div>
-
-            <div class="flex gap-2">
-                <button id="daily-checkin-btn" type="button" class="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center gap-2">
-                    <i data-lucide="check-circle" class="w-4 h-4"></i>
-                    <span>每日打卡</span>
-                </button>
-                <button id="leaderboard-btn" type="button" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold transition flex items-center gap-2">
-                    <i data-lucide="trophy" class="w-4 h-4"></i>
-                    <span>排行榜</span>
-                </button>
             </div>
         </div>
     `;
@@ -235,7 +227,7 @@ function attachTopBarEventListeners(topBar) {
 function createTopBarElementFromModel(model) {
     const topBar = document.createElement('div');
     topBar.id = 'enhanced-game-top-bar';
-    topBar.className = 'bg-white rounded-2xl shadow-lg p-4';
+    topBar.className = 'bg-white rounded-2xl shadow-lg p-3 sm:p-4 min-w-0 max-w-full overflow-hidden';
     topBar.innerHTML = buildTopBarInnerHTML(model);
     attachTopBarEventListeners(topBar);
     return topBar;
@@ -263,13 +255,14 @@ export async function renderEnhancedCourse(container) {
 
     const mainContent = document.createElement('div');
     mainContent.id = 'enhanced-course-content';
-    mainContent.className = 'flex-1';
+    mainContent.className = 'flex-1 min-w-0 w-full order-1 lg:order-2';
 
     const layout = document.createElement('div');
-    layout.className = 'flex flex-col gap-6';
+    layout.className = 'flex flex-col gap-4 sm:gap-6 min-w-0 max-w-full';
 
     const contentRow = document.createElement('div');
-    contentRow.className = 'flex gap-6';
+    contentRow.className =
+        'flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch min-w-0 max-w-full';
     contentRow.appendChild(sidebar);
     contentRow.appendChild(mainContent);
 
@@ -313,7 +306,8 @@ function createCourseSidebar(cloudPayload = null) {
 
     const sidebar = document.createElement('div');
     sidebar.id = 'enhanced-course-sidebar';
-    sidebar.className = 'w-80 bg-white rounded-2xl shadow-lg p-6 flex flex-col gap-6 max-h-[85vh] overflow-y-auto';
+    sidebar.className =
+        'w-full lg:w-80 lg:max-w-sm lg:flex-shrink-0 order-2 lg:order-1 bg-white rounded-2xl shadow-lg p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 max-h-[55vh] sm:max-h-[65vh] lg:max-h-[85vh] overflow-y-auto min-w-0';
     sidebar.innerHTML = `
         <!-- 学习统计 -->
         <div class="bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl p-4 text-white">

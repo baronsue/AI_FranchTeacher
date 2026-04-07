@@ -217,7 +217,8 @@ export function showBadgesModal(badges, allBadges) {
  */
 export function showCelebration(message, duration = 3000) {
     const celebration = document.createElement('div');
-    celebration.className = 'fixed top-20 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-8 py-4 rounded-full shadow-2xl z-50 font-bold text-lg animate-bounce-in';
+    celebration.className =
+        'fixed top-16 sm:top-20 left-1/2 z-50 max-w-[min(calc(100vw-1.5rem),22rem)] -translate-x-1/2 transform bg-gradient-to-r from-yellow-400 to-orange-500 px-4 py-3 sm:px-8 sm:py-4 text-center text-sm sm:text-base font-bold text-white shadow-2xl rounded-2xl sm:rounded-full break-words [overflow-wrap:anywhere] animate-bounce-in';
     celebration.textContent = message;
 
     document.body.appendChild(celebration);
