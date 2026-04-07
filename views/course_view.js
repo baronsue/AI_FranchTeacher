@@ -1,5 +1,11 @@
 import { speak } from '../services/speech_service.js';
 import { userDataService } from '../services/user_data_service.js';
+import {
+    startCourse,
+    completeCourse,
+    updateCourseProgress,
+    getCourseProgress
+} from '../utils/course_manager.js';
 
 let correctAnswers = {
     fill: [],
@@ -8,6 +14,7 @@ let correctAnswers = {
 };
 let globalInputIndex = 0; // 全局输入框索引计数器
 const EXERCISE_ID = 'lesson_1_exercises';
+const COURSE_ID_FOR_EXERCISE = 'lesson_1';
 
 /** 统一规范化后再比较：小写、去首尾空白、去掉重音（便于 êtes / etes 等价） */
 function normalizeAnswer(value) {
@@ -707,16 +714,29 @@ async function checkAllAnswers() {
     const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
     const completed = score >= 60; // 60分以上算完成
 
-    // 保存到后端
+    // 保存到后端 + 同步课程进度（学习面板与顶栏积分依赖云端数据）
     try {
         await userDataService.saveExercise(EXERCISE_ID, userAnswers, score, completed);
         console.log(`练习已保存到云端，得分: ${score}分`);
+
+        startCourse(COURSE_ID_FOR_EXERCISE);
+        if (completed) {
+            completeCourse(COURSE_ID_FOR_EXERCISE, score);
+        } else {
+            updateCourseProgress(COURSE_ID_FOR_EXERCISE, { score, lastScore: score });
+        }
+        const progressSnapshot = getCourseProgress(COURSE_ID_FOR_EXERCISE);
+        await userDataService.saveCourseProgress(COURSE_ID_FOR_EXERCISE, progressSnapshot);
 
         // 如果完成，添加积分
         if (completed && score === 100) {
             await userDataService.addPoints(10, '完美完成课程练习', 'exercise');
         } else if (completed) {
             await userDataService.addPoints(5, '完成课程练习', 'exercise');
+        }
+
+        if (typeof window.updateGameTopBar === 'function') {
+            window.updateGameTopBar().catch(() => {});
         }
     } catch (error) {
         console.error('保存练习失败:', error);

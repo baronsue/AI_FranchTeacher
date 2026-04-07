@@ -181,16 +181,19 @@ class UserDataService {
         }
     }
 
+    /**
+     * @returns {Promise<{ success: boolean, data?: object, error?: string }>}
+     */
     async checkin() {
         try {
             const response = await authService.post('/user/checkins', {});
             if (response.success) {
                 notifyUserDataChanged({ source: 'checkin' });
             }
-            return response.success ? response.data : null;
+            return response;
         } catch (error) {
             console.error('打卡失败:', error);
-            return null;
+            return { success: false, error: error.message || '网络错误' };
         }
     }
 
