@@ -11,6 +11,9 @@ const API_BASE_URL = isLocalFrontend
     ? 'http://localhost:3002/api'
     : AUTH_API_PRODUCTION;
 
+// Render 免费实例冷启动常超过 30s，线上认证请求单独放宽超时
+const AUTH_FETCH_TIMEOUT_MS = isLocalFrontend ? 30000 : 120000;
+
 console.log('[Auth] API Base URL:', API_BASE_URL);
 
 // 安全地从localStorage解析JSON
@@ -80,27 +83,34 @@ class AuthService {
      */
     async register(username, email, password, displayName = '') {
         try {
-            const response = await fetchWithTimeout(`${API_BASE_URL}/auth/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
+            const response = await fetchWithTimeout(
+                `${API_BASE_URL}/auth/register`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username,
+                        email,
+                        password,
+                        displayName: displayName || username
+                    })
                 },
-                body: JSON.stringify({
-                    username,
-                    email,
-                    password,
-                    displayName: displayName || username
-                })
-            });
+                AUTH_FETCH_TIMEOUT_MS
+            );
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
 
             if (data.success) {
                 // 保存令牌和用户信息
                 this.saveAuthData(data.data);
                 return { success: true, user: data.data.user };
             } else {
-                return { success: false, error: data.error };
+                return {
+                    success: false,
+                    error: data.error || (response.status >= 500 ? '服务器错误，请查看 Render 认证服务日志' : '注册失败')
+                };
             }
         } catch (error) {
             console.error('注册错误:', error);
@@ -113,22 +123,29 @@ class AuthService {
      */
     async login(username, password) {
         try {
-            const response = await fetchWithTimeout(`${API_BASE_URL}/auth/login`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
+            const response = await fetchWithTimeout(
+                `${API_BASE_URL}/auth/login`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
                 },
-                body: JSON.stringify({ username, password })
-            });
+                AUTH_FETCH_TIMEOUT_MS
+            );
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
 
             if (data.success) {
                 // 保存令牌和用户信息
                 this.saveAuthData(data.data);
                 return { success: true, user: data.data.user };
             } else {
-                return { success: false, error: data.error };
+                return {
+                    success: false,
+                    error: data.error || (response.status >= 500 ? '服务器错误，请查看 Render 认证服务日志' : '登录失败')
+                };
             }
         } catch (error) {
             console.error('登录错误:', error);
@@ -142,16 +159,20 @@ class AuthService {
     async logout() {
         try {
             if (this.accessToken) {
-                await fetchWithTimeout(`${API_BASE_URL}/auth/logout`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${this.accessToken}`
+                await fetchWithTimeout(
+                    `${API_BASE_URL}/auth/logout`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.accessToken}`
+                        },
+                        body: JSON.stringify({
+                            refreshToken: this.refreshToken
+                        })
                     },
-                    body: JSON.stringify({
-                        refreshToken: this.refreshToken
-                    })
-                });
+                    AUTH_FETCH_TIMEOUT_MS
+                );
             }
         } catch (error) {
             console.error('登出错误:', error);
@@ -179,15 +200,19 @@ class AuthService {
                 }
 
                 console.log('[Auth] 开始刷新token');
-                const response = await fetchWithTimeout(`${API_BASE_URL}/auth/refresh`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
+                const response = await fetchWithTimeout(
+                    `${API_BASE_URL}/auth/refresh`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            refreshToken: this.refreshToken
+                        })
                     },
-                    body: JSON.stringify({
-                        refreshToken: this.refreshToken
-                    })
-                });
+                    AUTH_FETCH_TIMEOUT_MS
+                );
 
                 const data = await response.json();
 
@@ -280,7 +305,7 @@ class AuthService {
         };
 
         try {
-            const response = await fetchWithTimeout(url, mergedOptions);
+            const response = await fetchWithTimeout(url, mergedOptions, AUTH_FETCH_TIMEOUT_MS);
             const data = await response.json();
 
             // 如果令牌过期，尝试刷新
@@ -289,7 +314,7 @@ class AuthService {
                 if (refreshed) {
                     // 重新发送请求
                     mergedOptions.headers['Authorization'] = `Bearer ${this.accessToken}`;
-                    const retryResponse = await fetchWithTimeout(url, mergedOptions);
+                    const retryResponse = await fetchWithTimeout(url, mergedOptions, AUTH_FETCH_TIMEOUT_MS);
                     return await retryResponse.json();
                 }
             }

@@ -7,20 +7,25 @@ let poolConfig;
 
 if (process.env.DATABASE_URL) {
     // 使用 DATABASE_URL 连接（Render 或其他云服务）
-    const isLocalDatabase = process.env.DATABASE_URL.includes('localhost') ||
-                           process.env.DATABASE_URL.includes('127.0.0.1');
+    const databaseUrl = process.env.DATABASE_URL;
+    const isLocalDatabase = databaseUrl.includes('localhost') ||
+                           databaseUrl.includes('127.0.0.1');
+
+    // Render External URL 形如 *.oregon-postgres.render.com，公网需 SSL。
+    // Internal URL 主机多为 dpg-xxx-a（无 *.postgres.render.com），走内网，强制 ssl 会导致连接失败。
+    const isRenderExternalPostgres = /\.postgres\.render\.com\b/i.test(databaseUrl);
+    const forceSsl = process.env.PG_FORCE_SSL === 'true';
 
     poolConfig = {
-        connectionString: process.env.DATABASE_URL,
+        connectionString: databaseUrl,
         max: 20,
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        connectionTimeoutMillis: parseInt(process.env.PG_CONNECT_TIMEOUT_MS || '15000', 10),
     };
 
-    // 只有远程数据库才需要 SSL
-    if (!isLocalDatabase) {
+    if (!isLocalDatabase && (isRenderExternalPostgres || forceSsl)) {
         poolConfig.ssl = {
-            rejectUnauthorized: false, // Render PostgreSQL 需要
+            rejectUnauthorized: false,
         };
     }
 } else {
