@@ -84,21 +84,47 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
-/** 从「□ 选项A □ 选项B」类列表项解析题干与选项文案 */
+/**
+ * 从「□ 选项A □ 选项B」解析题干与选项。
+ * 以 innerHTML 按方框类字符切分后取各段 textContent 为主；若为空再用整段 textContent 切分作备用。
+ * 禁止在「有方框题」时静默回退 un/une（否则会与中文标准答案错位）。
+ */
 function extractChoiceQuestionAndOptions(listItem) {
-    const hasOptionMarker = listItem.innerHTML.includes('□');
-    const questionHtml = hasOptionMarker
-        ? listItem.innerHTML.split('□')[0].trim()
-        : listItem.innerHTML;
+    const html = listItem.innerHTML;
+    const boxSplit = /[□\u25A1\u2610]/;
+
+    if (!boxSplit.test(html)) {
+        return { questionHtml: html, options: [] };
+    }
+
+    const parts = html.split(boxSplit);
+    const questionHtml = (parts[0] || '').trim();
+
+    const tmp = document.createElement('div');
+    const options = [];
+    for (let i = 1; i < parts.length; i++) {
+        tmp.innerHTML = parts[i].trim();
+        const t = (tmp.textContent || '')
+            .replace(/[\s\u3000\u00A0]+/g, ' ')
+            .replace(/[，,．。]+$/g, '')
+            .trim();
+        if (t) {
+            options.push(t);
+        }
+    }
+
+    if (options.length > 0) {
+        return { questionHtml, options };
+    }
 
     const rawText = (listItem.textContent || '').trim();
-    const optionTexts = rawText
-        .split('□')
+    const fromText = rawText
+        .split(boxSplit)
         .slice(1)
-        .map((option) => option.replace(/[\s\u3000\u00A0]+/g, ' ').replace(/[，,]$/g, '').trim())
+        .map((option) => option.replace(/[\s\u3000\u00A0]+/g, ' ').replace(/[，,．。]+$/g, '').trim())
         .filter(Boolean);
 
-    return { questionHtml, options: optionTexts };
+    return { questionHtml, options: fromText };
 }
 
 async function loadCourseContent(container) {
@@ -343,7 +369,10 @@ function buildUnUneChoiceSpan(currentIndex) {
 }
 
 function buildDynamicChoiceSpan(optionLabels, currentIndex) {
-    const opts = optionLabels.length > 0 ? optionLabels : ['un', 'une'];
+    if (!optionLabels || optionLabels.length === 0) {
+        return `<span class="text-red-600 text-sm" data-exercise="choice" data-index="${currentIndex}">（未能解析选项，请刷新页面或检查题目 HTML）</span>`;
+    }
+    const opts = optionLabels;
     const radios = opts
         .map((opt, optIdx) => {
             const id = `choice-${currentIndex}-${optIdx}`;
@@ -373,7 +402,7 @@ function createMultipleChoice(element) {
     if (list && list.tagName === 'OL') {
         let localCount = 0;
         Array.from(list.children).forEach((li) => {
-            const hasBox = li.innerHTML.includes('□');
+            const hasBox = /[□\u25A1\u2610]/.test(li.innerHTML);
             const hasUnderscore = /_{2,}/.test(li.innerHTML);
 
             if (!hasBox && !hasUnderscore) {
@@ -381,11 +410,17 @@ function createMultipleChoice(element) {
                 return;
             }
 
-            const currentIndex = globalInputIndex++;
-            localCount++;
-
             if (hasBox) {
                 const { questionHtml, options } = extractChoiceQuestionAndOptions(li);
+                if (options.length === 0) {
+                    console.error(
+                        '[选择题] 检测到方框标记但未解析出任何选项（避免误用 un/une）:',
+                        li.innerHTML.substring(0, 200)
+                    );
+                    return;
+                }
+                const currentIndex = globalInputIndex++;
+                localCount++;
                 const choiceSpan = buildDynamicChoiceSpan(options, currentIndex);
                 if (hasUnderscore) {
                     li.innerHTML = questionHtml.replace(/_{2,}/g, choiceSpan);
@@ -393,6 +428,8 @@ function createMultipleChoice(element) {
                     li.innerHTML = `<div class="choice-question mb-2">${questionHtml}</div>${choiceSpan}`;
                 }
             } else {
+                const currentIndex = globalInputIndex++;
+                localCount++;
                 li.innerHTML = li.innerHTML.replace(/_{2,}/g, buildUnUneChoiceSpan(currentIndex));
             }
         });
