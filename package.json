@@ -1,0 +1,15 @@
+{
+  "name": "ai-franchteacher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aurélie — static French-learning SPA (GitHub Pages) + auth-server + optional Qwen proxy",
+  "scripts": {
+    "serve": "npx --yes serve . -p 8080",
+    "dev:auth": "npm --prefix auth-server run dev",
+    "start:auth": "npm --prefix auth-server start",
+    "dev:proxy": "npm --prefix proxy run dev",
+    "start:proxy": "npm --prefix proxy start"
+  },
+  "keywords": ["french", "education", "spa"],
+  "license": "MIT"
+}
