@@ -2,10 +2,20 @@ const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
 const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 export const recognition = SpeechRecognition ? new SpeechRecognition() : null;
 
-/** 手机/平板：需用户手势后 Web Speech 才从 suspended 恢复 */
+/**
+ * 是否为「主要用触摸/粗指针」环境。
+ * 勿单独依赖 'ontouchstart' in window：Chrome 桌面版常为 true，会误判并影响自动朗读。
+ */
 export function prefersCoarsePointer() {
     if (typeof window === 'undefined') return false;
-    return 'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0;
+    if ((navigator.maxTouchPoints || 0) > 0) return true;
+    try {
+        if (window.matchMedia('(pointer: coarse)').matches) return true;
+        if (window.matchMedia('(hover: none)').matches && window.matchMedia('(max-width: 1024px)').matches) {
+            return true;
+        }
+    } catch (_) { /* ignore */ }
+    return false;
 }
 
 /**
@@ -239,7 +249,7 @@ function speakSegments(segments, options = {}) {
     // 递归朗读下一段
     const nextOnEnd = () => {
         if (remainingSegments.length > 0) {
-            speakSegments(remainingSegments, options);
+            speakSegments(remainingSegments, { ...options, userActivation: false });
         } else if (options.onend) {
             options.onend();
         }
@@ -257,7 +267,7 @@ function speakSegments(segments, options = {}) {
  * 朗读单一语言的文本
  */
 function speakSingleLanguage(text, options = {}) {
-    const { lang = 'fr-FR', rate, pitch, voiceURI, onstart, onend } = options;
+    const { lang = 'fr-FR', rate, pitch, voiceURI, onstart, onend, userActivation = false } = options;
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
@@ -321,8 +331,7 @@ function speakSingleLanguage(text, options = {}) {
         }
     };
 
-    // iOS/WebKit：在异步回调里 speak 时需推到下一宏任务，否则常无声音
-    if (prefersCoarsePointer()) {
+    if (prefersCoarsePointer() && !userActivation) {
         setTimeout(doSpeak, 0);
     } else {
         doSpeak();
@@ -360,7 +369,8 @@ export function speak(text, options = {}) {
         voiceURI,
         onstart,
         onend,
-        skipChinese = false  // 新增选项：是否跳过中文部分
+        skipChinese = false,
+        userActivation = false
     } = config;
 
     // 检测文本中是否包含中文
@@ -371,8 +381,7 @@ export function speak(text, options = {}) {
         const segments = splitMixedLanguageText(text);
 
         if (segments.length > 0) {
-            // 使用多语言朗读
-            speakSegments(segments, { rate, pitch, voiceURI, onstart, onend });
+            speakSegments(segments, { rate, pitch, voiceURI, onstart, onend, userActivation });
         } else {
             // 分割失败，回退到单语言朗读
             speakSingleLanguage(text, config);

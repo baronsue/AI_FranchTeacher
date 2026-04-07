@@ -17,6 +17,19 @@ let aiConversationHistory = []; // AI 对话历史
 /** 触摸设备上欢迎语延后到首次用户手势后再朗读（避免无声音） */
 let pendingDialogueWelcomeTTS = null;
 
+function isNarrowViewport() {
+    if (typeof window === 'undefined') return false;
+    try {
+        return window.matchMedia('(max-width: 767.98px)').matches;
+    } catch (_) {
+        return window.innerWidth <= 768;
+    }
+}
+
+function dialogueTouchLikeUi() {
+    return prefersCoarsePointer() || isNarrowViewport();
+}
+
 function renderChatMessage(message, sender, useTypingEffect = false) {
     const chatLog = document.getElementById('chat-log');
     const messageEl = document.createElement('div');
@@ -55,6 +68,31 @@ function renderChatMessage(message, sender, useTypingEffect = false) {
     }
 
     chatLog.scrollTop = chatLog.scrollHeight;
+
+    if (!isUser) {
+        const bubble = messageTextEl.parentElement;
+        const row = document.createElement('div');
+        row.className = 'flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-100';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className =
+            'inline-flex items-center justify-center gap-2 text-sm font-medium text-purple-800 bg-purple-100 active:bg-purple-200 px-4 min-h-[48px] rounded-xl shrink-0 w-full sm:w-auto border border-purple-300';
+        btn.style.touchAction = 'manipulation';
+        btn.setAttribute('aria-label', '收听本条法语朗读');
+        btn.innerHTML = '<i data-lucide="volume-2" class="w-5 h-5 shrink-0"></i><span>收听朗读</span>';
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            unlockSpeechSynthesis();
+            speakWithIndicator(message, { userActivation: true, skipChinese: true });
+        });
+        row.appendChild(btn);
+        bubble.appendChild(row);
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+            lucide.createIcons();
+        }
+    }
+
     return messageEl;
 }
 
@@ -215,11 +253,12 @@ function getRuleBasedResponse(userInput) {
     // 使用打字效果渲染AI回复
     renderChatMessage(response, 'ai', true);
 
-    // 延迟播放语音，等待打字效果开始
-    const typingDuration = response.length * 30; // 计算打字所需时间
-    setTimeout(() => {
-        speakWithIndicator(response);
-    }, Math.min(typingDuration * 0.3, 500)); // 在打字进行30%时开始播放，最多延迟500ms
+    if (!dialogueTouchLikeUi()) {
+        const typingDuration = response.length * 30;
+        setTimeout(() => {
+            speakWithIndicator(response);
+        }, Math.min(typingDuration * 0.3, 500));
+    }
 }
 
 // 使用 AI 生成回复（新增）
@@ -287,14 +326,15 @@ function removeTypingIndicator() {
     }
 }
 
-// 带视觉指示器的语音播放函数
-function speakWithIndicator(text) {
+function speakWithIndicator(text, opts = {}) {
     const indicator = document.getElementById('speech-indicator');
 
     speak(text, {
         lang: 'fr-FR',
         rate: speechRate,
         voiceURI: selectedVoiceURI,
+        userActivation: Boolean(opts.userActivation),
+        skipChinese: Boolean(opts.skipChinese),
         onstart: () => {
             isSpeaking = true;
             if (indicator) {
@@ -580,7 +620,7 @@ export function renderDialogueMode(container) {
             </div>
 
             <p id="dialogue-speech-hint" class="hidden text-xs text-center text-amber-800 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-2" role="note">
-                手机/平板：每条 AI 回复下方点「收听朗读」即可听法语；欢迎语在首次轻触屏幕后播放。
+                手机或窄屏：点气泡下「收听朗读」。宽屏电脑会自动朗读；若无声可点「收听朗读」。
             </p>
             <div id="chat-log" class="flex-1 min-h-[200px] bg-white/50 p-3 sm:p-4 rounded-t-2xl overflow-y-auto overflow-x-hidden overscroll-contain h-[min(58dvh,calc(100dvh-19rem))] md:h-[calc(100vh-330px)] md:max-h-[calc(100vh-280px)]">
                 <!-- Chat messages will appear here -->
@@ -604,7 +644,7 @@ export function renderDialogueMode(container) {
     lucide.createIcons();
 
     const speechHint = document.getElementById('dialogue-speech-hint');
-    if (speechHint && prefersCoarsePointer()) {
+    if (speechHint && dialogueTouchLikeUi()) {
         speechHint.classList.remove('hidden');
     }
 
@@ -613,7 +653,7 @@ export function renderDialogueMode(container) {
         if (pendingDialogueWelcomeTTS) {
             const msg = pendingDialogueWelcomeTTS;
             pendingDialogueWelcomeTTS = null;
-            speakWithIndicator(msg);
+            speakWithIndicator(msg, { userActivation: true });
         }
     }
 
@@ -621,6 +661,9 @@ export function renderDialogueMode(container) {
     dialogueRoot.addEventListener('pointerdown', onDialogueFirstInteraction, { capture: true, passive: true });
     const chatInputForUnlock = document.getElementById('chat-input');
     chatInputForUnlock.addEventListener('focus', onDialogueFirstInteraction);
+    chatInputForUnlock.addEventListener('touchstart', onDialogueFirstInteraction, { passive: true });
+    chatInputForUnlock.addEventListener('touchend', onDialogueFirstInteraction, { passive: true });
+    chatInputForUnlock.addEventListener('click', onDialogueFirstInteraction);
 
     // 初始化语音选择器
     const voiceSelector = document.getElementById('voice-selector');
@@ -737,13 +780,13 @@ export function renderDialogueMode(container) {
             );
         });
 
-    // 欢迎消息（触摸设备上朗读延后到首次 pointerdown/focus，否则 Safari 等会静音）
+    const welcomeMessage = "Bonjour ! Bienvenue dans le mode dialogue. Pose-moi une question en français pour commencer.";
+    if (dialogueTouchLikeUi()) {
+        pendingDialogueWelcomeTTS = welcomeMessage;
+    }
     setTimeout(() => {
-        const welcomeMessage = "Bonjour ! Bienvenue dans le mode dialogue. Pose-moi une question en français pour commencer.";
         renderChatMessage(welcomeMessage, 'ai', true);
-        if (prefersCoarsePointer()) {
-            pendingDialogueWelcomeTTS = welcomeMessage;
-        } else {
+        if (!dialogueTouchLikeUi()) {
             setTimeout(() => speakWithIndicator(welcomeMessage), 500);
         }
     }, 200);
