@@ -37,7 +37,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html main.js router.js style.css _site/
-          cp -r components data services utils views _site/
+          cp -r assets components data services utils views _site/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

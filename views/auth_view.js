@@ -1,4 +1,5 @@
 import { authService } from '../services/auth_service.js';
+import { appLogoUrl } from '../utils/static_assets.js';
 
 export class AuthView {
     constructor() {
@@ -20,9 +21,7 @@ export class AuthView {
                     <!-- Logo和标题 -->
                     <div class="text-center">
                         <div class="flex justify-center mb-4">
-                            <div class="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center text-white text-3xl">
-                                🎓
-                            </div>
+                            <img src="${appLogoUrl}" width="64" height="64" class="w-16 h-16 rounded-2xl object-cover shadow-md ring-2 ring-indigo-100" alt="" decoding="async">
                         </div>
                         <h2 class="text-2xl sm:text-3xl font-extrabold text-gray-900 break-words">
                             AI FranchTeacher

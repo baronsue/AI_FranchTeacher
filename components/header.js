@@ -1,4 +1,5 @@
 import { authService } from '../services/auth_service.js';
+import { appLogoUrl } from '../utils/static_assets.js';
 
 function navigate(view) {
     const path = view.startsWith('/') ? view : `/${view}`;
@@ -33,7 +34,7 @@ export function createHeader() {
         <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-w-0">
             <div class="flex items-center justify-between gap-2 h-16 sm:h-20 min-w-0">
                 <div class="flex items-center cursor-pointer min-w-0 shrink gap-2 sm:gap-3" id="home-link">
-                    <img class="h-8 w-8 sm:h-10 sm:w-auto shrink-0 rounded-lg object-cover" src="https://r2.flowith.net/files/png/QE1EX-french_language_learning_app_logo_index_2@1024x1024.png" alt="App Logo">
+                    <img class="h-8 w-8 sm:h-10 sm:w-10 shrink-0 rounded-lg object-cover" src="${appLogoUrl}" width="40" height="40" alt="" decoding="async">
                     <span class="text-lg sm:text-2xl font-bold text-[#333] truncate">Aurélie</span>
                 </div>
 
