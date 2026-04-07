@@ -74,6 +74,33 @@ function parseAnswerBlock(answerString) {
     return result;
 }
 
+function escapeHtml(value) {
+    if (value === undefined || value === null) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/** 从「□ 选项A □ 选项B」类列表项解析题干与选项文案 */
+function extractChoiceQuestionAndOptions(listItem) {
+    const hasOptionMarker = listItem.innerHTML.includes('□');
+    const questionHtml = hasOptionMarker
+        ? listItem.innerHTML.split('□')[0].trim()
+        : listItem.innerHTML;
+
+    const rawText = (listItem.textContent || '').trim();
+    const optionTexts = rawText
+        .split('□')
+        .slice(1)
+        .map((option) => option.replace(/[\s\u3000\u00A0]+/g, ' ').replace(/[，,]$/g, '').trim())
+        .filter(Boolean);
+
+    return { questionHtml, options: optionTexts };
+}
+
 async function loadCourseContent(container) {
     try {
         const response = await fetch('data/course_content.md');
@@ -300,6 +327,34 @@ function createFillInTheBlanks(element) {
     return element;
 }
 
+function buildUnUneChoiceSpan(currentIndex) {
+    return `
+        <span class="font-semibold mx-2 inline-flex flex-wrap gap-2 items-center" data-exercise="choice" data-index="${currentIndex}">
+            <label class="mr-3 cursor-pointer hover:bg-blue-50 p-1 rounded inline-flex items-center">
+                <input type="radio" name="choice-${currentIndex}" value="un" class="mr-1"> un
+            </label>
+            <label class="cursor-pointer hover:bg-blue-50 p-1 rounded inline-flex items-center">
+                <input type="radio" name="choice-${currentIndex}" value="une" class="mr-1"> une
+            </label>
+        </span>`;
+}
+
+function buildDynamicChoiceSpan(optionLabels, currentIndex) {
+    const opts = optionLabels.length > 0 ? optionLabels : ['un', 'une'];
+    const radios = opts
+        .map((opt, optIdx) => {
+            const id = `choice-${currentIndex}-${optIdx}`;
+            const val = opt.trim();
+            const esc = escapeHtml(val);
+            return `<label for="${id}" class="mr-2 mb-1 inline-flex cursor-pointer hover:bg-blue-50 p-1 rounded items-center gap-1">
+                <input type="radio" id="${id}" name="choice-${currentIndex}" value="${esc}" class="mr-1">
+                <span>${esc}</span>
+            </label>`;
+        })
+        .join('');
+    return `<span class="font-semibold mx-2 inline-flex flex-wrap gap-1 items-center" data-exercise="choice" data-index="${currentIndex}">${radios}</span>`;
+}
+
 function createMultipleChoice(element) {
     // 查找 OL 列表：可能在 LI 内部、是 OL 本身、或是下一个兄弟元素
     let list = null;
@@ -315,19 +370,28 @@ function createMultipleChoice(element) {
     if (list && list.tagName === 'OL') {
         let localCount = 0;
         Array.from(list.children).forEach((li) => {
-            // 替换任意数量的下划线（2个或更多）
-            const currentIndex = globalInputIndex++; // 使用全局索引
+            const hasBox = li.innerHTML.includes('□');
+            const hasUnderscore = /_{2,}/.test(li.innerHTML);
+
+            if (!hasBox && !hasUnderscore) {
+                console.warn('选择题 LI 无 □ 也无下划线，跳过:', li.textContent.substring(0, 50));
+                return;
+            }
+
+            const currentIndex = globalInputIndex++;
             localCount++;
-            li.innerHTML = li.innerHTML.replace(/_{2,}/g, `
-                <span class="font-semibold mx-2" data-exercise="choice" data-index="${currentIndex}">
-                    <label class="mr-3 cursor-pointer hover:bg-blue-50 p-1 rounded">
-                        <input type="radio" name="choice-${currentIndex}" value="un" class="mr-1"> un
-                    </label>
-                    <label class="cursor-pointer hover:bg-blue-50 p-1 rounded">
-                        <input type="radio" name="choice-${currentIndex}" value="une" class="mr-1"> une
-                    </label>
-                </span>
-            `);
+
+            if (hasBox) {
+                const { questionHtml, options } = extractChoiceQuestionAndOptions(li);
+                const choiceSpan = buildDynamicChoiceSpan(options, currentIndex);
+                if (hasUnderscore) {
+                    li.innerHTML = questionHtml.replace(/_{2,}/g, choiceSpan);
+                } else {
+                    li.innerHTML = `<div class="choice-question mb-2">${questionHtml}</div>${choiceSpan}`;
+                }
+            } else {
+                li.innerHTML = li.innerHTML.replace(/_{2,}/g, buildUnUneChoiceSpan(currentIndex));
+            }
         });
         console.log(`✓ 创建了 ${localCount} 个选择题（全局索引: ${globalInputIndex - localCount} - ${globalInputIndex - 1}）`);
 
