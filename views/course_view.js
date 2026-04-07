@@ -9,6 +9,71 @@ let correctAnswers = {
 let globalInputIndex = 0; // 全局输入框索引计数器
 const EXERCISE_ID = 'lesson_1_exercises';
 
+/** 统一规范化后再比较：小写、去首尾空白、去掉重音（便于 êtes / etes 等价） */
+function normalizeAnswer(value) {
+    if (value === undefined || value === null) return '';
+    return String(value)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function parseSequentialAnswers(content) {
+    const answers = [];
+    const pairRegex = /([a-z])[\.\)]?\s*([^,，；;]+)/gi;
+    let m;
+    while ((m = pairRegex.exec(content)) !== null) {
+        answers.push(m[2].trim());
+    }
+    return answers;
+}
+
+function parseMatchingAnswers(content) {
+    const matchAnswers = {};
+    const pairRegex = /(\d+)\s*[-:：]\s*([A-Za-z])/g;
+    let m;
+    while ((m = pairRegex.exec(content)) !== null) {
+        matchAnswers[m[1]] = m[2].toUpperCase();
+    }
+    return matchAnswers;
+}
+
+/**
+ * 从一条答案注释中解析出填空 / 选择 / 匹配（支持 1-...; 2-...; 3:... 与 Unité N：前缀）
+ */
+function parseAnswerBlock(answerString) {
+    const empty = { fill: [], choice: [], match: {} };
+    if (!answerString) return empty;
+
+    let normalized = answerString
+        .replace(/<!--|-->/g, '')
+        .replace(/[()（）]/g, '')
+        .replace(/答案[:：]?/i, '')
+        .replace(/Unité\s*\d+[:：]?/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!normalized) return empty;
+
+    const result = { fill: [], choice: [], match: {} };
+    const sectionRegex = /([1-3])\s*[-:：]\s*([^;；]+)/g;
+    let match;
+    while ((match = sectionRegex.exec(normalized)) !== null) {
+        const sectionIndex = match[1];
+        const sectionContent = match[2].trim();
+        if (sectionIndex === '1') {
+            result.fill = parseSequentialAnswers(sectionContent);
+        } else if (sectionIndex === '2') {
+            result.choice = parseSequentialAnswers(sectionContent);
+        } else if (sectionIndex === '3') {
+            result.match = parseMatchingAnswers(sectionContent);
+        }
+    }
+    return result;
+}
+
 async function loadCourseContent(container) {
     try {
         const response = await fetch('data/course_content.md');
@@ -116,7 +181,10 @@ function parseForInteractivity(wrapper) {
 
         if (answerComment) {
             console.log('找到答案:', answerComment.textContent.substring(0, 50));
-            parseAnswers(answerComment.textContent);
+            const block = parseAnswerBlock(answerComment.textContent);
+            correctAnswers.fill.push(...block.fill);
+            correctAnswers.choice.push(...block.choice);
+            Object.assign(correctAnswers.match, block.match);
             answerComment.remove();
         }
 
@@ -193,82 +261,6 @@ function parseForInteractivity(wrapper) {
             console.log('检查答案按钮已添加');
         }
     });
-}
-
-function parseAnswers(answerString) {
-    try {
-        console.log('开始解析答案:', answerString.substring(0, 100));
-
-        // 清理答案字符串：移除括号、"答案："和可能的单元名称前缀
-        let cleanString = answerString
-            .replace(/答案[：:]/g, '')
-            .replace(/[()（）]/g, '')
-            .replace(/Unité\s+\d+[：:]/g, '')  // 移除 "Unité 2：" 这样的前缀
-            .trim();
-
-        console.log('清理后的答案:', cleanString);
-
-        // 支持中文分号和英文分号
-        const parts = cleanString.split(/[;；]/);
-        console.log('分割后的部分数:', parts.length);
-
-        // 解析填空题答案
-        if (parts[0]) {
-            // 支持两种格式: "a. suis" 和 "a voudrais" (有无点号都可以)
-            // 匹配: a-任意内容, b-任意内容, 等等
-            const fillMatches = parts[0].match(/[a-e]\.?\s*[^,；;]+/gi);
-            if (fillMatches && fillMatches.length > 0) {
-                // 移除字母前缀和可选的点号，只保留答案
-                const answers = fillMatches.map(s => {
-                    // 移除 "a. " 或 "a " 前缀
-                    return s.replace(/^[a-e]\.?\s*/, '').trim();
-                });
-                // 追加到现有答案数组（支持多个练习部分）
-                correctAnswers.fill = correctAnswers.fill.concat(answers);
-                console.log('✓ 填空题答案（累积）:', correctAnswers.fill);
-            } else {
-                console.warn('未找到填空题答案');
-            }
-        }
-
-        // 解析选择题答案
-        if (parts[1]) {
-            // 选择题答案可能是中文或英文，支持有无点号
-            const choiceMatches = parts[1].match(/[a-e]\.?\s*[^,；;]+/gi);
-            if (choiceMatches && choiceMatches.length > 0) {
-                const answers = choiceMatches.map(s => {
-                    return s.replace(/^[a-e]\.?\s*/, '').trim();
-                });
-                // 追加到现有答案数组
-                correctAnswers.choice = correctAnswers.choice.concat(answers);
-                console.log('✓ 选择题答案（累积）:', correctAnswers.choice);
-            } else {
-                console.warn('未找到选择题答案');
-            }
-        }
-
-        // 解析匹配题答案
-        if (parts[2]) {
-            const matchMatches = parts[2].match(/\d-[A-Z]/g);
-            if (matchMatches && matchMatches.length > 0) {
-                // 追加到现有答案对象，而不是覆盖
-                matchMatches.forEach(m => {
-                    const [num, letter] = m.split('-');
-                    correctAnswers.match[num] = letter;
-                });
-                console.log('✓ 匹配题答案（累积）:', correctAnswers.match);
-            } else {
-                console.warn('未找到匹配题答案');
-            }
-        }
-    } catch (error) {
-        console.error('解析答案时出错:', error);
-        console.error('答案字符串:', answerString);
-        // 设置默认值避免后续错误
-        correctAnswers.fill = correctAnswers.fill || [];
-        correctAnswers.choice = correctAnswers.choice || [];
-        correctAnswers.match = correctAnswers.match || {};
-    }
 }
 
 function createFillInTheBlanks(element) {
@@ -482,10 +474,10 @@ function restoreUserAnswers(answers) {
     if (answers.choice && Array.isArray(answers.choice)) {
         document.querySelectorAll('[data-exercise="choice"]').forEach((span, index) => {
             const value = answers.choice[index];
-            if (value) {
-                const radio = document.querySelector(`input[name="choice-${index}"][value="${value}"]`);
-                if (radio) radio.checked = true;
-            }
+            if (value == null || value === '') return;
+            span.querySelectorAll('input[type="radio"]').forEach((radio) => {
+                radio.checked = radio.value === value;
+            });
         });
     }
     
@@ -514,7 +506,7 @@ async function checkAllAnswers() {
     // 检查填空题
     document.querySelectorAll('[data-exercise="fill"]').forEach(input => {
         totalQuestions++;
-        const userInput = input.value.trim().toLowerCase();
+        const userNorm = normalizeAnswer(input.value);
         const correctAnswerRaw = correctAnswers.fill[input.dataset.index];
 
         // 如果没有正确答案，跳过（不计分）
@@ -524,13 +516,12 @@ async function checkAllAnswers() {
             return;
         }
 
-        const correctAnswer = correctAnswerRaw.toLowerCase();
-        // 只有当用户输入非空且匹配时才算正确
-        const isCorrect = userInput !== '' && userInput === correctAnswer;
+        const correctNorm = normalizeAnswer(correctAnswerRaw);
+        const isCorrect = userNorm !== '' && userNorm === correctNorm;
         if (isCorrect) correctCount++;
         input.classList.toggle('correct', isCorrect);
         input.classList.toggle('incorrect', !isCorrect);
-        console.log(`填空题 ${input.dataset.index}: 用户输入="${userInput}", 正确答案="${correctAnswer}", 结果=${isCorrect}`);
+        console.log(`填空题 ${input.dataset.index}: 用户="${userNorm}", 标准="${correctNorm}", 结果=${isCorrect}`);
     });
 
     // 检查选择题
@@ -551,14 +542,11 @@ async function checkAllAnswers() {
         }
 
         if (selectedRadio) {
-            // 转为小写比较，支持不同大小写
-            const userAnswer = selectedRadio.value.toLowerCase();
-            const correctAnswer = correctAnswerRaw.toLowerCase();
-            const isCorrect = userAnswer === correctAnswer;
+            const isCorrect = normalizeAnswer(selectedRadio.value) === normalizeAnswer(correctAnswerRaw);
             if (isCorrect) correctCount++;
             resultSpan.textContent = isCorrect ? '✓' : '✗';
             resultSpan.className = isCorrect ? 'answer-correct' : 'answer-incorrect';
-            console.log(`选择题 ${index}: 用户选择="${userAnswer}", 正确答案="${correctAnswer}", 结果=${isCorrect}`);
+            console.log(`选择题 ${index}: 用户="${normalizeAnswer(selectedRadio.value)}", 标准="${normalizeAnswer(correctAnswerRaw)}", 结果=${isCorrect}`);
         } else {
             resultSpan.textContent = '?';
             resultSpan.className = 'answer-incorrect';
@@ -578,7 +566,9 @@ async function checkAllAnswers() {
 
         totalQuestions++;
         const userAnswer = source.dataset.userAnswer;
-        const isCorrect = userAnswer && userAnswer === correctAnswer;
+        const isCorrect =
+            !!userAnswer &&
+            normalizeAnswer(userAnswer) === normalizeAnswer(correctAnswer);
         if (isCorrect) correctCount++;
 
         const resultSpan = source.nextElementSibling || document.createElement('span');
