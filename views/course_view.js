@@ -1,4 +1,4 @@
-import { speak } from '../services/speech_service.js';
+import { speak, unlockSpeechSynthesis } from '../services/speech_service.js';
 import { userDataService } from '../services/user_data_service.js';
 import {
     startCourse,
@@ -222,6 +222,7 @@ function parseForInteractivity(wrapper) {
     wrapper.querySelectorAll('.play-audio-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const text = btn.getAttribute('data-text');
+            unlockSpeechSynthesis();
             speak(text, 'fr-FR');
         });
     });

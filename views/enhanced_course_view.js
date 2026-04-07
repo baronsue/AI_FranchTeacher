@@ -2,7 +2,7 @@
  * 增强版课程视图 - 包含完整的交互式学习系统
  */
 
-import { speak } from '../services/speech_service.js';
+import { speak, unlockSpeechSynthesis } from '../services/speech_service.js';
 import { saveExerciseAnswers, getExerciseAnswers, clearExerciseAnswers } from '../utils/progress_manager.js';
 import {
     getAllCourses,
@@ -421,6 +421,7 @@ function parseForInteractivity(wrapper, courseId) {
     wrapper.querySelectorAll('.play-audio-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const text = btn.getAttribute('data-text');
+            unlockSpeechSynthesis();
             speak(text, { lang: 'fr-FR' });
         });
     });

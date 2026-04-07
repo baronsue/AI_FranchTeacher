@@ -1,6 +1,25 @@
-const synth = window.speechSynthesis;
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
+const SpeechRecognition = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 export const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
+/** 手机/平板：需用户手势后 Web Speech 才从 suspended 恢复 */
+export function prefersCoarsePointer() {
+    if (typeof window === 'undefined') return false;
+    return 'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0;
+}
+
+/**
+ * 在用户点击/触摸后调用，解除 iOS Safari 等对 speechSynthesis 的冻结。
+ * 在每次 speak 前也会尝试 resume，但首次必须由用户手势触发过本函数或同一次手势链内的操作。
+ */
+export function unlockSpeechSynthesis() {
+    if (!synth) return;
+    try {
+        synth.resume();
+    } catch (e) {
+        console.warn('[speech] resume:', e);
+    }
+}
 
 let voices = [];
 let voicesLoaded = false;
@@ -41,6 +60,7 @@ const CHINESE_LOCALE_PRIORITY = {
 };
 
 function getVoices() {
+    if (!synth) return;
     const availableVoices = synth.getVoices();
     if (availableVoices.length > 0) {
         voices = availableVoices;
@@ -168,9 +188,11 @@ function selectBestChineseVoice() {
     return bestVoice;
 }
 
-getVoices();
-if (synth.onvoiceschanged !== undefined) {
-    synth.onvoiceschanged = getVoices;
+if (synth) {
+    getVoices();
+    if (synth.onvoiceschanged !== undefined) {
+        synth.onvoiceschanged = getVoices;
+    }
 }
 
 /**
@@ -284,21 +306,37 @@ function speakSingleLanguage(text, options = {}) {
     // 设置回调
     if (onstart) utterance.onstart = onstart;
     if (onend) utterance.onend = onend;
-
-    try {
-        synth.speak(utterance);
-    } catch (error) {
-        console.error("Error speaking:", error);
+    utterance.onerror = (ev) => {
+        console.warn('[speech] utterance error:', ev.error);
         if (onend) onend();
+    };
+
+    const doSpeak = () => {
+        try {
+            unlockSpeechSynthesis();
+            synth.speak(utterance);
+        } catch (error) {
+            console.error('Error speaking:', error);
+            if (onend) onend();
+        }
+    };
+
+    // iOS/WebKit：在异步回调里 speak 时需推到下一宏任务，否则常无声音
+    if (prefersCoarsePointer()) {
+        setTimeout(doSpeak, 0);
+    } else {
+        doSpeak();
     }
 }
 
 export function speak(text, options = {}) {
     // 检查浏览器支持
-    if (!synth || !('speechSynthesis' in window)) {
-        console.error("Speech Synthesis not supported.");
+    if (!synth || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        console.error('Speech Synthesis not supported.');
         return false;
     }
+
+    unlockSpeechSynthesis();
 
     // 等待语音加载
     if (!voicesLoaded) {
@@ -309,7 +347,7 @@ export function speak(text, options = {}) {
         // 取消之前的朗读
         synth.cancel();
     } catch (error) {
-        console.error("Error canceling speech:", error);
+        console.error('Error canceling speech:', error);
         return false;
     }
 

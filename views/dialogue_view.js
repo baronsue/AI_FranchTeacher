@@ -1,4 +1,9 @@
-import { speak, getAvailableFrenchVoices } from '../services/speech_service.js';
+import {
+    speak,
+    getAvailableFrenchVoices,
+    unlockSpeechSynthesis,
+    prefersCoarsePointer
+} from '../services/speech_service.js';
 import { recognition } from '../services/speech_service.js';
 import { generateAIResponse, checkAPIAvailability, AI_PROVIDERS, setAIProvider, getCurrentProvider } from '../services/ai_service.js';
 import { testQwenAPI, getQwenModelInfo } from '../services/qwen_service.js';
@@ -9,6 +14,8 @@ let speechRate = 0.85; // 默认语速
 let selectedVoiceURI = null; // 用户选择的语音
 let useAI = true; // 是否使用 AI（可切换到规则模式）
 let aiConversationHistory = []; // AI 对话历史
+/** 触摸设备上欢迎语延后到首次用户手势后再朗读（避免无声音） */
+let pendingDialogueWelcomeTTS = null;
 
 function renderChatMessage(message, sender, useTypingEffect = false) {
     const chatLog = document.getElementById('chat-log');
@@ -52,6 +59,7 @@ function renderChatMessage(message, sender, useTypingEffect = false) {
 }
 
 function handleUserInput() {
+    unlockSpeechSynthesis();
     const chatInput = document.getElementById('chat-input');
     const message = chatInput.value.trim();
     if (message) {
@@ -318,6 +326,7 @@ function toggleVoiceRecognition() {
         return;
     }
 
+    unlockSpeechSynthesis();
     recognition.lang = 'fr-FR';
 
     try {
@@ -515,8 +524,9 @@ function showAPIConfigModal() {
 }
 
 export function renderDialogueMode(container) {
+    pendingDialogueWelcomeTTS = null;
     container.innerHTML = `
-        <div class="h-full min-h-0 flex flex-col max-w-3xl mx-auto w-full min-w-0 px-0 sm:px-1">
+        <div id="dialogue-mode-root" class="h-full min-h-0 flex flex-col max-w-3xl mx-auto w-full min-w-0 px-0 sm:px-1">
             <!-- 语音播放指示器 -->
             <div id="speech-indicator" class="hidden items-center justify-center gap-2 bg-purple-500 text-white px-3 sm:px-4 py-2 rounded-lg mb-2 shadow-lg text-center">
                 <i data-lucide="volume-2" class="w-5 h-5 animate-pulse shrink-0"></i>
@@ -569,6 +579,9 @@ export function renderDialogueMode(container) {
                 </div>
             </div>
 
+            <p id="dialogue-speech-hint" class="hidden text-xs text-center text-amber-800 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-2" role="note">
+                手机/平板：请先轻触输入框或对话区域，以开启浏览器语音朗读。
+            </p>
             <div id="chat-log" class="flex-1 min-h-[200px] bg-white/50 p-3 sm:p-4 rounded-t-2xl overflow-y-auto overflow-x-hidden overscroll-contain h-[min(58dvh,calc(100dvh-19rem))] md:h-[calc(100vh-330px)] md:max-h-[calc(100vh-280px)]">
                 <!-- Chat messages will appear here -->
             </div>
@@ -589,6 +602,25 @@ export function renderDialogueMode(container) {
     `;
 
     lucide.createIcons();
+
+    const speechHint = document.getElementById('dialogue-speech-hint');
+    if (speechHint && prefersCoarsePointer()) {
+        speechHint.classList.remove('hidden');
+    }
+
+    function onDialogueFirstInteraction() {
+        unlockSpeechSynthesis();
+        if (pendingDialogueWelcomeTTS) {
+            const msg = pendingDialogueWelcomeTTS;
+            pendingDialogueWelcomeTTS = null;
+            speakWithIndicator(msg);
+        }
+    }
+
+    const dialogueRoot = document.getElementById('dialogue-mode-root');
+    dialogueRoot.addEventListener('pointerdown', onDialogueFirstInteraction, { capture: true, passive: true });
+    const chatInputForUnlock = document.getElementById('chat-input');
+    chatInputForUnlock.addEventListener('focus', onDialogueFirstInteraction);
 
     // 初始化语音选择器
     const voiceSelector = document.getElementById('voice-selector');
@@ -705,10 +737,14 @@ export function renderDialogueMode(container) {
             );
         });
 
-    // 欢迎消息
+    // 欢迎消息（触摸设备上朗读延后到首次 pointerdown/focus，否则 Safari 等会静音）
     setTimeout(() => {
         const welcomeMessage = "Bonjour ! Bienvenue dans le mode dialogue. Pose-moi une question en français pour commencer.";
         renderChatMessage(welcomeMessage, 'ai', true);
-        setTimeout(() => speakWithIndicator(welcomeMessage), 500);
+        if (prefersCoarsePointer()) {
+            pendingDialogueWelcomeTTS = welcomeMessage;
+        } else {
+            setTimeout(() => speakWithIndicator(welcomeMessage), 500);
+        }
     }, 200);
 }
