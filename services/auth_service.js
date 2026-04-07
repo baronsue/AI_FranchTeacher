@@ -3,13 +3,27 @@
 // 生产环境认证 API（部署到 Render 后，把下面改成你的认证服务地址 + /api）
 const AUTH_API_PRODUCTION = 'https://ai-franchteacher.onrender.com/api';
 
+function resolveConfiguredAuthApiBaseUrl() {
+    if (typeof window !== 'undefined' && typeof window.__AURELIE_AUTH_API__ === 'string') {
+        const byWindow = window.__AURELIE_AUTH_API__.trim();
+        if (byWindow) return byWindow;
+    }
+    if (typeof document !== 'undefined') {
+        const meta = document.querySelector('meta[name="aurelie-auth-api"]');
+        const byMeta = (meta?.content || '').trim();
+        if (byMeta) return byMeta;
+    }
+    return '';
+}
+
 const isLocalFrontend =
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1';
 
+const configuredAuthApiBaseUrl = resolveConfiguredAuthApiBaseUrl();
 const API_BASE_URL = isLocalFrontend
     ? 'http://localhost:3002/api'
-    : AUTH_API_PRODUCTION;
+    : (configuredAuthApiBaseUrl || AUTH_API_PRODUCTION);
 
 // Render 免费实例冷启动常超过 30s，线上认证请求单独放宽超时
 const AUTH_FETCH_TIMEOUT_MS = isLocalFrontend ? 30000 : 120000;

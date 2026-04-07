@@ -23,8 +23,21 @@ function getRouteFromHash() {
     return hash || 'dashboard';
 }
 
+function resolveConfiguredQwenProxyUrl() {
+    if (typeof window !== 'undefined' && typeof window.__AURELIE_QWEN_PROXY__ === 'string') {
+        const byWindow = window.__AURELIE_QWEN_PROXY__.trim();
+        if (byWindow) return byWindow;
+    }
+    if (typeof document !== 'undefined') {
+        const meta = document.querySelector('meta[name="aurelie-qwen-proxy"]');
+        const byMeta = (meta?.content || '').trim();
+        if (byMeta) return byMeta;
+    }
+    return '';
+}
+
 function initializeApp() {
-    const deployedProxy = 'https://qwen-proxy.onrender.com/qwen';
+    const deployedProxy = resolveConfiguredQwenProxyUrl() || 'https://qwen-proxy.onrender.com/qwen';
     const isLocal =
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1' ||

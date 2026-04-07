@@ -248,18 +248,23 @@ export function showLeaderboardModal(leaderboard) {
             </div>
 
             <div class="space-y-3">
-                ${leaderboard.map(user => `
+                ${leaderboard.map(user => {
+                    const safeName = escapeHtml(user.name || '');
+                    const safeAvatar = escapeHtml(user.avatar || '👤');
+                    const safePoints = Number.isFinite(Number(user.points)) ? Number(user.points) : 0;
+                    return `
                     <div class="flex items-center gap-4 p-4 rounded-lg ${user.isMe ? 'bg-blue-50 border-2 border-blue-500' : 'bg-gray-50'} transition hover:shadow-md">
                         <div class="text-2xl font-bold ${user.rank <= 3 ? 'text-yellow-500' : 'text-gray-400'} w-8">
                             ${user.rank === 1 ? '🥇' : user.rank === 2 ? '🥈' : user.rank === 3 ? '🥉' : user.rank}
                         </div>
-                        <div class="text-3xl">${user.avatar}</div>
+                        <div class="text-3xl">${safeAvatar}</div>
                         <div class="flex-1">
-                            <div class="font-semibold text-gray-900">${user.name} ${user.isMe ? '(我)' : ''}</div>
-                            <div class="text-sm text-gray-600">${user.points} 积分</div>
+                            <div class="font-semibold text-gray-900">${safeName} ${user.isMe ? '(我)' : ''}</div>
+                            <div class="text-sm text-gray-600">${safePoints} 积分</div>
                         </div>
                     </div>
-                `).join('')}
+                `;
+                }).join('')}
             </div>
         </div>
     `;

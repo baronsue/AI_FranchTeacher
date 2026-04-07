@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "init-db": "node scripts/init-db.js"
+    "init-db": "node scripts/init-render-db.js"
   },
   "keywords": ["authentication", "express", "postgresql", "jwt"],
   "author": "",

@@ -5,6 +5,7 @@ import { userDataService } from './services/user_data_service.js';
 let isRedirecting = false;
 let redirectCount = 0;
 const MAX_REDIRECTS = 3;
+let migratePromise = null;
 
 const dynamicLoaders = {
     login: {
@@ -41,11 +42,19 @@ async function maybeMigrateLocalData(view) {
         return;
     }
     const migrated = localStorage.getItem('data_migrated');
-    if (!migrated) {
-        console.log('首次登录，开始迁移本地数据...');
-        await userDataService.migrateLocalData();
-        localStorage.setItem('data_migrated', 'true');
+    if (migrated) {
+        return;
     }
+    if (!migratePromise) {
+        console.log('首次登录，开始迁移本地数据...');
+        migratePromise = (async () => {
+            await userDataService.migrateLocalData();
+            localStorage.setItem('data_migrated', 'true');
+        })().finally(() => {
+            migratePromise = null;
+        });
+    }
+    await migratePromise;
 }
 
 export async function navigateTo(view, container, routes = {}) {

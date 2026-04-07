@@ -47,6 +47,15 @@ function normalizeList(data) {
     return [];
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function buildProgressMap(progressRows) {
     const map = new Map();
     for (const row of progressRows) {
@@ -286,8 +295,8 @@ export async function renderDashboard(container) {
                 <h2 class="text-xl sm:text-2xl font-bold text-gray-800 mb-4">成就徽章</h2>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     ${badgeList.length > 0 ? badgeList.map((badge) => {
-                        const name = badge.badge_name || badge.badgeName || '徽章';
-                        const icon = badge.badge_icon || badge.badgeIcon || '🏆';
+                        const name = escapeHtml(badge.badge_name || badge.badgeName || '徽章');
+                        const icon = escapeHtml(badge.badge_icon || badge.badgeIcon || '🏆');
                         const earned = badge.earned_at || badge.earnedAt;
                         const earnedLabel = earned ? new Date(earned).toLocaleDateString() : '';
                         return `

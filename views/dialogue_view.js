@@ -18,6 +18,10 @@ let aiConversationHistory = []; // AI 对话历史
 let pendingDialogueWelcomeTTS = null;
 /** 记录最近一条 AI 消息，供移动端兜底朗读按钮使用 */
 let lastDialogueAiMessage = '';
+/** 避免每次进入对话页都叠加 onvoiceschanged 链 */
+let dialogueVoicesListenerBound = false;
+let dialogueVoicesPreviousHandler = null;
+let dialogueVoicesRefreshCallback = null;
 
 function isNarrowViewport() {
     if (typeof window === 'undefined') return false;
@@ -36,6 +40,23 @@ function dialogueTouchLikeUi() {
         } catch (_) { /* ignore */ }
     }
     return isNarrowViewport();
+}
+
+function ensureDialogueVoicesListener() {
+    if (!window.speechSynthesis) return;
+    const syn = window.speechSynthesis;
+    if (dialogueVoicesListenerBound) return;
+
+    dialogueVoicesPreviousHandler = syn.onvoiceschanged;
+    syn.onvoiceschanged = function dialogueVoicesChangedChain() {
+        if (typeof dialogueVoicesPreviousHandler === 'function') {
+            dialogueVoicesPreviousHandler.call(syn);
+        }
+        if (typeof dialogueVoicesRefreshCallback === 'function') {
+            dialogueVoicesRefreshCallback();
+        }
+    };
+    dialogueVoicesListenerBound = true;
 }
 
 function updateMobileReplayButtonState() {
@@ -725,11 +746,10 @@ export function renderDialogueMode(container) {
     chatInputForUnlock.addEventListener('touchstart', onDialogueFirstInteraction, { passive: true });
     chatInputForUnlock.addEventListener('click', onDialogueFirstInteraction);
 
-    // 初始化语音选择器
-    const voiceSelector = document.getElementById('voice-selector');
-
     function populateVoiceSelector() {
         try {
+            const voiceSelector = document.getElementById('voice-selector');
+            if (!voiceSelector) return;
             const frenchVoices = getAvailableFrenchVoices();
 
             // 清空现有选项（保留第一个"自动选择"）
@@ -776,21 +796,16 @@ export function renderDialogueMode(container) {
 
     // 移动端语音常延迟返回：多次尝试 + 与 speech_service 的 onvoiceschanged 链式调用（勿覆盖）
     [0, 400, 1200, 2500].forEach((ms) => setTimeout(populateVoiceSelector, ms));
-    if (window.speechSynthesis) {
-        const syn = window.speechSynthesis;
-        const prevHandler = syn.onvoiceschanged;
-        syn.onvoiceschanged = function voicesChangedChain() {
-            if (typeof prevHandler === 'function') {
-                prevHandler.call(syn);
-            }
-            populateVoiceSelector();
-        };
-    }
+    dialogueVoicesRefreshCallback = populateVoiceSelector;
+    ensureDialogueVoicesListener();
 
-    voiceSelector.addEventListener('change', (e) => {
-        selectedVoiceURI = e.target.value || null;
-        console.log('Selected voice URI:', selectedVoiceURI);
-    });
+    const voiceSelectorEl = document.getElementById('voice-selector');
+    if (voiceSelectorEl) {
+        voiceSelectorEl.addEventListener('change', (e) => {
+            selectedVoiceURI = e.target.value || null;
+            console.log('Selected voice URI:', selectedVoiceURI);
+        });
+    }
 
     // AI 模式切换
     const aiToggle = document.getElementById('ai-mode-toggle');
