@@ -2,6 +2,16 @@
 
 import { authService } from './auth_service.js';
 
+const USER_DATA_CHANGED_EVENT = 'aurelie-user-data-changed';
+
+function notifyUserDataChanged(detail = {}) {
+    try {
+        window.dispatchEvent(new CustomEvent(USER_DATA_CHANGED_EVENT, { detail }));
+    } catch (_) {
+        /* ignore */
+    }
+}
+
 // 安全地从localStorage解析JSON
 function safeParseJSON(key, defaultValue = null) {
     try {
@@ -42,6 +52,9 @@ class UserDataService {
                 courseId,
                 progress
             });
+            if (response.success) {
+                notifyUserDataChanged({ source: 'courseProgress' });
+            }
             return response.success;
         } catch (error) {
             console.error('保存课程进度失败:', error);
@@ -72,6 +85,9 @@ class UserDataService {
                 score,
                 completed
             });
+            if (response.success) {
+                notifyUserDataChanged({ source: 'exercise' });
+            }
             return response.success;
         } catch (error) {
             console.error('保存练习记录失败:', error);
@@ -100,6 +116,9 @@ class UserDataService {
                 reason,
                 activityType
             });
+            if (response.success) {
+                notifyUserDataChanged({ source: 'points' });
+            }
             return response.success ? response.data : null;
         } catch (error) {
             console.error('添加积分失败:', error);
@@ -138,6 +157,9 @@ class UserDataService {
                 badgeName,
                 badgeIcon
             });
+            if (response.success) {
+                notifyUserDataChanged({ source: 'badge' });
+            }
             return response.success;
         } catch (error) {
             console.error('添加徽章失败:', error);
@@ -162,6 +184,9 @@ class UserDataService {
     async checkin() {
         try {
             const response = await authService.post('/user/checkins', {});
+            if (response.success) {
+                notifyUserDataChanged({ source: 'checkin' });
+            }
             return response.success ? response.data : null;
         } catch (error) {
             console.error('打卡失败:', error);
@@ -227,6 +252,9 @@ class UserDataService {
     async updateStats(stats) {
         try {
             const response = await authService.post('/user/stats', stats);
+            if (response.success) {
+                notifyUserDataChanged({ source: 'stats' });
+            }
             return response.success;
         } catch (error) {
             console.error('更新统计失败:', error);
