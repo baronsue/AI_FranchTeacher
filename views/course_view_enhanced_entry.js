@@ -29,6 +29,65 @@ import {
     showMistakesModal,
     showLeaderboardModal
 } from '../utils/modal_manager.js';
+import {
+    buildProgressMaps,
+    completionRateFromCloud,
+    effectiveCourseProgress,
+    isCourseUnlockedFromCloud,
+    learningSummaryFromCloud,
+    mapCloudMistakesForModal,
+    normalizeList
+} from '../utils/cloud_course_state.js';
+
+const USER_DATA_CHANGED_EVENT = 'aurelie-user-data-changed';
+
+let courseSidebarRefreshTimer;
+let courseSidebarRefreshListenerRegistered = false;
+
+async function fetchCloudSidebarData() {
+    const [progressRaw, exerciseRaw, mistakesRaw] = await Promise.all([
+        userDataService.getCourseProgress(),
+        userDataService.getExercise(),
+        userDataService.getMistakes(false)
+    ]);
+    return {
+        progressList: normalizeList(progressRaw),
+        exerciseList: normalizeList(exerciseRaw),
+        mistakesList: Array.isArray(mistakesRaw) ? mistakesRaw : []
+    };
+}
+
+function ensureCourseSidebarRefreshListener() {
+    if (courseSidebarRefreshListenerRegistered) return;
+    courseSidebarRefreshListenerRegistered = true;
+    window.addEventListener(USER_DATA_CHANGED_EVENT, () => {
+        clearTimeout(courseSidebarRefreshTimer);
+        courseSidebarRefreshTimer = setTimeout(() => {
+            refreshCourseSidebarFromCloud().catch((err) => console.error('刷新侧边栏失败:', err));
+        }, 400);
+    });
+}
+
+/**
+ * 与学习数据变更事件联动，刷新侧边栏（仅登录且在课程页）
+ */
+export async function refreshCourseSidebarFromCloud() {
+    if (!authService.isAuthenticated()) return;
+    if (!window.location.hash.includes('course')) return;
+    const el = document.getElementById('enhanced-course-sidebar');
+    if (!el) return;
+    let data;
+    try {
+        data = await fetchCloudSidebarData();
+    } catch (e) {
+        console.error('重新拉取侧边栏数据失败', e);
+        return;
+    }
+    const next = createCourseSidebar(data);
+    next.id = 'enhanced-course-sidebar';
+    el.replaceWith(next);
+    lucide.createIcons();
+}
 
 function getTopBarModelLocal() {
     const points = getPoints();
@@ -127,7 +186,11 @@ function attachTopBarEventListeners(topBar) {
                 return;
             }
             const msg = (res && res.error) ? String(res.error) : '';
-            if (msg.includes('已经') || msg.includes('打卡过了')) {
+            if (
+                msg.includes('已经') ||
+                msg.includes('打卡过了') ||
+                /already|checked\s*in/i.test(msg)
+            ) {
                 showCelebration('今天已经打卡过了！');
                 return;
             }
@@ -184,7 +247,19 @@ function createTopBarElementFromModel(model) {
 export async function renderEnhancedCourse(container) {
     const topBar = createTopBarElementFromModel(getTopBarModelLocal());
 
-    const sidebar = createCourseSidebar();
+    let cloudSidebarData = null;
+    if (authService.isAuthenticated()) {
+        try {
+            cloudSidebarData = await fetchCloudSidebarData();
+        } catch (e) {
+            console.error('加载侧边栏云端数据失败', e);
+            cloudSidebarData = { progressList: [], exerciseList: [], mistakesList: [] };
+        }
+    }
+    const sidebar = authService.isAuthenticated()
+        ? createCourseSidebar(cloudSidebarData)
+        : createCourseSidebar();
+    ensureCourseSidebarRefreshListener();
 
     const mainContent = document.createElement('div');
     mainContent.id = 'enhanced-course-content';
@@ -212,13 +287,32 @@ export async function renderEnhancedCourse(container) {
 }
 
 /**
- * 创建课程侧边栏
+ * @param {object | null} cloudPayload 登录用户：来自 API 的进度/练习/错题；未登录传 null
  */
-function createCourseSidebar() {
+function createCourseSidebar(cloudPayload = null) {
     const courses = getAllCourses();
-    const stats = getLearningStats();
+    const useCloud = authService.isAuthenticated() && cloudPayload != null;
+
+    let stats;
+    let progressMap;
+    let exerciseMap;
+    if (useCloud) {
+        const maps = buildProgressMaps(cloudPayload.progressList, cloudPayload.exerciseList);
+        progressMap = maps.progressMap;
+        exerciseMap = maps.exerciseMap;
+        stats = learningSummaryFromCloud(courses, progressMap, exerciseMap);
+    } else {
+        progressMap = null;
+        exerciseMap = null;
+        stats = getLearningStats();
+    }
+
+    const mistakeCount = useCloud
+        ? (cloudPayload.mistakesList?.length ?? 0)
+        : getMistakes(true).length;
 
     const sidebar = document.createElement('div');
+    sidebar.id = 'enhanced-course-sidebar';
     sidebar.className = 'w-80 bg-white rounded-2xl shadow-lg p-6 flex flex-col gap-6 max-h-[85vh] overflow-y-auto';
     sidebar.innerHTML = `
         <!-- 学习统计 -->
@@ -227,6 +321,7 @@ function createCourseSidebar() {
                 <h3 class="text-lg font-bold">学习进度</h3>
                 <span class="text-2xl">📚</span>
             </div>
+            ${useCloud ? '<p class="text-xs opacity-80 mb-2">与账户云端数据同步</p>' : ''}
             <div class="grid grid-cols-2 gap-3 text-sm">
                 <div class="bg-white/20 rounded-lg p-2">
                     <div class="text-xs opacity-90">已完成</div>
@@ -252,7 +347,7 @@ function createCourseSidebar() {
         <div class="flex flex-col gap-2 pt-4 border-t">
             <button id="show-mistakes-btn" class="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition">
                 <i data-lucide="alert-circle" class="w-4 h-4"></i>
-                错题本 (${getMistakes(true).length})
+                错题本 (${mistakeCount})
             </button>
         </div>
     `;
@@ -260,9 +355,20 @@ function createCourseSidebar() {
     // 渲染课程列表
     const courseList = sidebar.querySelector('#course-list');
     courses.forEach(course => {
-        const progress = getCourseProgress(course.id);
-        const unlocked = isCourseUnlocked(course.id);
-        const completionRate = getCourseCompletionRate(course.id);
+        let unlocked;
+        let completionRate;
+        let completedFlag;
+        if (useCloud) {
+            const eff = effectiveCourseProgress(course.id, course, progressMap, exerciseMap);
+            unlocked = isCourseUnlockedFromCloud(course, progressMap, exerciseMap);
+            completionRate = completionRateFromCloud(course, eff);
+            completedFlag = eff.completed;
+        } else {
+            const progress = getCourseProgress(course.id);
+            unlocked = isCourseUnlocked(course.id);
+            completionRate = getCourseCompletionRate(course.id);
+            completedFlag = !!(progress && progress.completed);
+        }
 
         const courseCard = document.createElement('div');
         courseCard.className = `relative p-3 rounded-lg border-2 transition
@@ -288,7 +394,7 @@ function createCourseSidebar() {
                             <span>需要完成前置课程</span>
                         </div>
                     `}
-                    ${progress.completed ? '<div class="absolute top-2 right-2 text-green-500 text-xl">✓</div>' : ''}
+                    ${completedFlag ? '<div class="absolute top-2 right-2 text-green-500 text-xl">✓</div>' : ''}
                 </div>
             </div>
         `;
@@ -304,9 +410,14 @@ function createCourseSidebar() {
         courseList.appendChild(courseCard);
     });
 
-    // 绑定错题本按钮
     sidebar.querySelector('#show-mistakes-btn').addEventListener('click', () => {
-        showMistakesModal(getMistakes(true));
+        if (useCloud) {
+            showMistakesModal(mapCloudMistakesForModal(cloudPayload.mistakesList), {
+                onMarkReviewed: async (id) => userDataService.markMistakeMastered(Number(id))
+            });
+        } else {
+            showMistakesModal(getMistakes(true));
+        }
     });
 
     return sidebar;

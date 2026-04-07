@@ -157,16 +157,26 @@ async function loadCourseContent(container) {
 
         lucide.createIcons();
 
-        // 恢复之前保存的答案
+        // 恢复之前保存的答案（单题查询返回对象，列表查询返回数组）
         setTimeout(async () => {
             try {
                 const exerciseData = await userDataService.getExercise(EXERCISE_ID);
-                if (exerciseData && exerciseData.length > 0) {
-                    const savedAnswers = exerciseData[0].answers;
-                    if (savedAnswers) {
-                        restoreUserAnswers(savedAnswers);
-                        console.log('练习答案已从云端恢复');
+                const row = Array.isArray(exerciseData)
+                    ? exerciseData[0]
+                    : exerciseData;
+                if (!row) return;
+
+                let savedAnswers = row.answers;
+                if (typeof savedAnswers === 'string') {
+                    try {
+                        savedAnswers = JSON.parse(savedAnswers);
+                    } catch {
+                        savedAnswers = null;
                     }
+                }
+                if (savedAnswers && typeof savedAnswers === 'object') {
+                    restoreUserAnswers(savedAnswers);
+                    console.log('练习答案已从云端恢复');
                 }
             } catch (error) {
                 console.error('恢复练习答案失败:', error);
@@ -714,29 +724,39 @@ async function checkAllAnswers() {
     const score = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
     const completed = score >= 60; // 60分以上算完成
 
-    // 保存到后端 + 同步课程进度（学习面板与顶栏积分依赖云端数据）
     try {
-        await userDataService.saveExercise(EXERCISE_ID, userAnswers, score, completed);
-        console.log(`练习已保存到云端，得分: ${score}分`);
-
-        startCourse(COURSE_ID_FOR_EXERCISE);
-        if (completed) {
-            completeCourse(COURSE_ID_FOR_EXERCISE, score);
+        const savedOk = await userDataService.saveExercise(EXERCISE_ID, userAnswers, score, completed);
+        if (!savedOk) {
+            console.warn('练习未写入云端，已跳过课程进度与积分同步');
         } else {
-            updateCourseProgress(COURSE_ID_FOR_EXERCISE, { score, lastScore: score });
-        }
-        const progressSnapshot = getCourseProgress(COURSE_ID_FOR_EXERCISE);
-        await userDataService.saveCourseProgress(COURSE_ID_FOR_EXERCISE, progressSnapshot);
+            console.log(`练习已保存到云端，得分: ${score}分`);
 
-        // 如果完成，添加积分
-        if (completed && score === 100) {
-            await userDataService.addPoints(10, '完美完成课程练习', 'exercise');
-        } else if (completed) {
-            await userDataService.addPoints(5, '完成课程练习', 'exercise');
-        }
+            startCourse(COURSE_ID_FOR_EXERCISE);
+            if (completed) {
+                completeCourse(COURSE_ID_FOR_EXERCISE, score);
+            } else {
+                updateCourseProgress(COURSE_ID_FOR_EXERCISE, { score, lastScore: score });
+            }
+            let progressSnapshot = getCourseProgress(COURSE_ID_FOR_EXERCISE);
+            if (!progressSnapshot || typeof progressSnapshot !== 'object') {
+                progressSnapshot = {
+                    started: true,
+                    completed,
+                    score,
+                    lastAttempt: new Date().toISOString()
+                };
+            }
+            await userDataService.saveCourseProgress(COURSE_ID_FOR_EXERCISE, progressSnapshot);
 
-        if (typeof window.updateGameTopBar === 'function') {
-            window.updateGameTopBar().catch(() => {});
+            if (completed && score === 100) {
+                await userDataService.addPoints(10, '完美完成课程练习', 'exercise');
+            } else if (completed) {
+                await userDataService.addPoints(5, '完成课程练习', 'exercise');
+            }
+
+            if (typeof window.updateGameTopBar === 'function') {
+                window.updateGameTopBar().catch(() => {});
+            }
         }
     } catch (error) {
         console.error('保存练习失败:', error);

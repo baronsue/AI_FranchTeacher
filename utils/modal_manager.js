@@ -92,8 +92,11 @@ export function showScoreModal(score, correctCount, totalQuestions) {
 
 /**
  * 显示错题本模态框
+ * @param {object} [options]
+ * @param {(mistakeId: string) => Promise<boolean|void>} [options.onMarkReviewed] 若提供则替代本地 markMistakeReviewed（用于云端错题）
  */
-export function showMistakesModal(mistakes) {
+export function showMistakesModal(mistakes, options = {}) {
+    const { onMarkReviewed } = options;
     const modal = createModalContainer();
 
     modal.innerHTML = `
@@ -141,9 +144,14 @@ export function showMistakesModal(mistakes) {
     modal.querySelector('#close-modal-btn').addEventListener('click', () => closeModal(modal));
 
     modal.querySelectorAll('.mark-reviewed-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
             const mistakeId = e.target.dataset.mistakeId;
-            markMistakeReviewed(mistakeId);
+            if (onMarkReviewed) {
+                const ok = await onMarkReviewed(mistakeId);
+                if (ok === false) return;
+            } else {
+                markMistakeReviewed(mistakeId);
+            }
 
             const mistakeCard = modal.querySelector(`[data-mistake-id="${mistakeId}"]`);
             if (mistakeCard) {
@@ -188,7 +196,7 @@ export function showBadgesModal(badges, allBadges) {
                             </span>
                             ${earned ? `
                                 <div class="mt-2 text-xs text-gray-500">
-                                    ${new Date(earned.earnedAt).toLocaleDateString()}
+                                    ${earned.earnedAt ? new Date(earned.earnedAt).toLocaleDateString() : '已获得'}
                                 </div>
                             ` : ''}
                         </div>

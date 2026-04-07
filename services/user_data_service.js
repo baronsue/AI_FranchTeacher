@@ -231,6 +231,9 @@ class UserDataService {
     async markMistakeMastered(mistakeId) {
         try {
             const response = await authService.patch(`/user/mistakes/${mistakeId}/mastered`, {});
+            if (response.success) {
+                notifyUserDataChanged({ source: 'mistake' });
+            }
             return response.success;
         } catch (error) {
             console.error('标记错题失败:', error);
