@@ -16,6 +16,8 @@ let useAI = true; // 是否使用 AI（可切换到规则模式）
 let aiConversationHistory = []; // AI 对话历史
 /** 需手势后再播的欢迎语文本（仅窄屏/粗指针端） */
 let pendingDialogueWelcomeTTS = null;
+/** 记录最近一条 AI 消息，供移动端兜底朗读按钮使用 */
+let lastDialogueAiMessage = '';
 
 function isNarrowViewport() {
     if (typeof window === 'undefined') return false;
@@ -34,6 +36,56 @@ function dialogueTouchLikeUi() {
         } catch (_) { /* ignore */ }
     }
     return isNarrowViewport();
+}
+
+function updateMobileReplayButtonState() {
+    const replayRow = document.getElementById('mobile-replay-row');
+    const replayBtn = document.getElementById('speak-last-btn');
+    if (!replayRow || !replayBtn) return;
+
+    const touchLikeUi = dialogueTouchLikeUi();
+    replayRow.classList.toggle('hidden', !touchLikeUi);
+
+    const hasReplayText = Boolean((lastDialogueAiMessage || '').trim());
+    replayBtn.disabled = !hasReplayText;
+    replayBtn.setAttribute('aria-disabled', hasReplayText ? 'false' : 'true');
+    replayBtn.classList.toggle('opacity-50', !hasReplayText);
+    replayBtn.classList.toggle('cursor-not-allowed', !hasReplayText);
+}
+
+function rememberLastDialogueAiMessage(message) {
+    lastDialogueAiMessage = String(message || '').trim();
+    updateMobileReplayButtonState();
+}
+
+function appendReplayButtonToAiBubble(messageTextEl, message) {
+    const bubble = messageTextEl?.parentElement;
+    if (!bubble) return;
+
+    const oldRow = bubble.querySelector('.dialogue-replay-row');
+    if (oldRow) oldRow.remove();
+
+    const row = document.createElement('div');
+    row.className = 'dialogue-replay-row flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-100';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className =
+        'inline-flex items-center justify-center gap-2 text-sm font-medium text-purple-800 bg-purple-100 active:bg-purple-200 px-4 min-h-[48px] rounded-xl shrink-0 w-full sm:w-auto border border-purple-300';
+    btn.style.touchAction = 'manipulation';
+    btn.setAttribute('aria-label', '收听本条法语朗读');
+    btn.innerHTML = '<i data-lucide="volume-2" class="w-5 h-5 shrink-0"></i><span>收听朗读</span>';
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        unlockSpeechSynthesis();
+        speakWithIndicator(message, { userActivation: true, skipChinese: true });
+    });
+
+    row.appendChild(btn);
+    bubble.appendChild(row);
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
 }
 
 function renderChatMessage(message, sender, useTypingEffect = false) {
@@ -76,27 +128,8 @@ function renderChatMessage(message, sender, useTypingEffect = false) {
     chatLog.scrollTop = chatLog.scrollHeight;
 
     if (!isUser) {
-        const bubble = messageTextEl.parentElement;
-        const row = document.createElement('div');
-        row.className = 'flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-gray-100';
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className =
-            'inline-flex items-center justify-center gap-2 text-sm font-medium text-purple-800 bg-purple-100 active:bg-purple-200 px-4 min-h-[48px] rounded-xl shrink-0 w-full sm:w-auto border border-purple-300';
-        btn.style.touchAction = 'manipulation';
-        btn.setAttribute('aria-label', '收听本条法语朗读');
-        btn.innerHTML = '<i data-lucide="volume-2" class="w-5 h-5 shrink-0"></i><span>收听朗读</span>';
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            unlockSpeechSynthesis();
-            speakWithIndicator(message, { userActivation: true, skipChinese: true });
-        });
-        row.appendChild(btn);
-        bubble.appendChild(row);
-        if (typeof lucide !== 'undefined' && lucide.createIcons) {
-            lucide.createIcons();
-        }
+        rememberLastDialogueAiMessage(message);
+        appendReplayButtonToAiBubble(messageTextEl, message);
     }
 
     return messageEl;
@@ -572,6 +605,7 @@ function showAPIConfigModal() {
 
 export function renderDialogueMode(container) {
     pendingDialogueWelcomeTTS = null;
+    lastDialogueAiMessage = '';
     container.innerHTML = `
         <div id="dialogue-mode-root" class="h-full min-h-0 flex flex-col max-w-3xl mx-auto w-full min-w-0 px-0 sm:px-1">
             <!-- 语音播放指示器 -->
@@ -645,6 +679,13 @@ export function renderDialogueMode(container) {
                         <i data-lucide="mic" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                     </button>
                 </div>
+                <div id="mobile-replay-row" class="hidden mt-2">
+                    <button type="button" id="speak-last-btn"
+                        class="w-full inline-flex items-center justify-center gap-2 text-sm font-medium text-purple-800 bg-purple-100 active:bg-purple-200 px-4 min-h-[46px] rounded-xl border border-purple-300">
+                        <i data-lucide="volume-2" class="w-5 h-5 shrink-0"></i>
+                        <span>朗读上一条 AI 回复</span>
+                    </button>
+                </div>
             </div>
         </div>
     `;
@@ -654,6 +695,17 @@ export function renderDialogueMode(container) {
     const speechHint = document.getElementById('dialogue-speech-hint');
     if (speechHint && dialogueTouchLikeUi()) {
         speechHint.classList.remove('hidden');
+    }
+    updateMobileReplayButtonState();
+
+    const speakLastBtn = document.getElementById('speak-last-btn');
+    if (speakLastBtn) {
+        speakLastBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!lastDialogueAiMessage) return;
+            unlockSpeechSynthesis();
+            speakWithIndicator(lastDialogueAiMessage, { userActivation: true, skipChinese: true });
+        });
     }
 
     function onDialogueFirstInteraction() {
