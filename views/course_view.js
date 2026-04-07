@@ -402,35 +402,45 @@ function createMultipleChoice(element) {
     if (list && list.tagName === 'OL') {
         let localCount = 0;
         Array.from(list.children).forEach((li) => {
-            const hasBox = /[□\u25A1\u2610]/.test(li.innerHTML);
             const hasUnderscore = /_{2,}/.test(li.innerHTML);
+            // 去掉 <code> 再检测方框，避免 rare 情况下与代码片段误判；且必须能解析出至少 2 个选项才算「方框翻译题」
+            const htmlForBoxProbe = li.innerHTML.replace(/<code\b[^>]*>[\s\S]*?<\/code>/gi, '');
+            const maybeHasBoxChar = /[□\u25A1\u2610]/.test(htmlForBoxProbe);
+            const { questionHtml, options } = maybeHasBoxChar
+                ? extractChoiceQuestionAndOptions(li)
+                : { questionHtml: li.innerHTML, options: [] };
+            const treatAsBoxChoice = options.length >= 2;
 
-            if (!hasBox && !hasUnderscore) {
-                console.warn('选择题 LI 无 □ 也无下划线，跳过:', li.textContent.substring(0, 50));
+            if (!hasUnderscore && !treatAsBoxChoice) {
+                console.warn('选择题 LI 无有效 □ 选项也无下划线，跳过:', li.textContent.substring(0, 50));
                 return;
             }
 
-            if (hasBox) {
-                const { questionHtml, options } = extractChoiceQuestionAndOptions(li);
-                if (options.length === 0) {
-                    console.error(
-                        '[选择题] 检测到方框标记但未解析出任何选项（避免误用 un/une）:',
-                        li.innerHTML.substring(0, 200)
-                    );
-                    return;
-                }
-                const currentIndex = globalInputIndex++;
-                localCount++;
-                const choiceSpan = buildDynamicChoiceSpan(options, currentIndex);
-                if (hasUnderscore) {
-                    li.innerHTML = questionHtml.replace(/_{2,}/g, choiceSpan);
-                } else {
-                    li.innerHTML = `<div class="choice-question mb-2">${questionHtml}</div>${choiceSpan}`;
-                }
+            // 仅有 ______ 的冠词题（Unité 1 等）：走 un/une，即使 innerHTML 某处误匹配了方框类字符
+            if (hasUnderscore && !treatAsBoxChoice) {
+                li.innerHTML = li.innerHTML.replace(/_{2,}/g, () => {
+                    const idx = globalInputIndex++;
+                    localCount++;
+                    return buildUnUneChoiceSpan(idx);
+                });
+                return;
+            }
+
+            // 方框翻译题（≥2 个选项）
+            if (options.length === 0) {
+                console.error(
+                    '[选择题] 方框题但未解析出任何选项:',
+                    li.innerHTML.substring(0, 200)
+                );
+                return;
+            }
+            const currentIndex = globalInputIndex++;
+            localCount++;
+            const choiceSpan = buildDynamicChoiceSpan(options, currentIndex);
+            if (hasUnderscore) {
+                li.innerHTML = questionHtml.replace(/_{2,}/g, choiceSpan);
             } else {
-                const currentIndex = globalInputIndex++;
-                localCount++;
-                li.innerHTML = li.innerHTML.replace(/_{2,}/g, buildUnUneChoiceSpan(currentIndex));
+                li.innerHTML = `<div class="choice-question mb-2">${questionHtml}</div>${choiceSpan}`;
             }
         });
         console.log(`✓ 创建了 ${localCount} 个选择题（全局索引: ${globalInputIndex - localCount} - ${globalInputIndex - 1}）`);
