@@ -580,7 +580,7 @@ export function renderDialogueMode(container) {
             </div>
 
             <p id="dialogue-speech-hint" class="hidden text-xs text-center text-amber-800 bg-amber-50 border border-amber-200 rounded-lg py-2 px-3 mb-2" role="note">
-                手机/平板：请先轻触输入框或对话区域，以开启浏览器语音朗读。
+                手机/平板：每条 AI 回复下方点「收听朗读」即可听法语；欢迎语在首次轻触屏幕后播放。
             </p>
             <div id="chat-log" class="flex-1 min-h-[200px] bg-white/50 p-3 sm:p-4 rounded-t-2xl overflow-y-auto overflow-x-hidden overscroll-contain h-[min(58dvh,calc(100dvh-19rem))] md:h-[calc(100vh-330px)] md:max-h-[calc(100vh-280px)]">
                 <!-- Chat messages will appear here -->

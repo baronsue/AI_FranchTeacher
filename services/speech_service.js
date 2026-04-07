@@ -381,7 +381,7 @@ export function speak(text, options = {}) {
         // 跳过中文部分，只朗读法语
         const frenchOnly = text.replace(/[(（][\u4e00-\u9fa5\s，。！？、]+[)）]/g, '').trim();
         if (frenchOnly) {
-            speakSingleLanguage(frenchOnly, config);
+            speakSingleLanguage(frenchOnly, { ...config, userActivation });
         } else if (onend) {
             onend();
         }
