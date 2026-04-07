@@ -1,7 +1,7 @@
 // 认证服务 - 管理用户认证和令牌
 
 // 生产环境认证 API（部署到 Render 后，把下面改成你的认证服务地址 + /api）
-const AUTH_API_PRODUCTION = 'https://ai-franchteacher-auth.onrender.com/api';
+const AUTH_API_PRODUCTION = 'https://ai-franchteacher.onrender.com/api';
 
 const isLocalFrontend =
     window.location.hostname === 'localhost' ||
