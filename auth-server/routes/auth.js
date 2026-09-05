@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const {
     register,
     login,
+    demoLogin,
     refreshToken,
     logout,
     getCurrentUser
@@ -48,6 +49,7 @@ const validateLogin = [
 // 路由定义
 router.post('/register', validateRegistration, register);
 router.post('/login', validateLogin, login);
+router.post('/demo', demoLogin);
 router.post('/refresh', refreshToken);
 router.post('/logout', authenticateToken, logout);
 router.get('/me', authenticateToken, getCurrentUser);

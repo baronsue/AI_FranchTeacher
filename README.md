@@ -18,7 +18,7 @@
 ### 功能概览
 
 - **课程** — Markdown 课文、增强版布局与侧边栏；登录用户可将进度、练习记录、错题等同步至服务器。
-- **认证与云端数据** — 注册 / 登录（JWT）；通过 `auth-server` 提供的 REST API 读写进度、练习、积分、徽章、打卡、错题与统计。
+- **认证与云端数据** — 注册 / 登录（JWT），以及无需账号的隔离式临时演示空间；通过 `auth-server` 提供的 REST API 读写进度、练习、积分、徽章、打卡、错题与统计。
 - **学习面板** — 与同一套 API 对齐的学习时长、完成度、打卡日历、徽章与积分展示。
 - **部署** — 前端静态托管（如 GitHub Pages）+ Render 上的 Node 服务 + PostgreSQL。详细步骤见 [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md)。
 
@@ -86,7 +86,7 @@ A browser-based French learning app: interactive lessons, exercises (fill-in-the
 ### Features
 
 - **Courses** — Markdown-driven content, enhanced layout with sidebar; progress, exercises, and mistakes can sync to the server for logged-in users.
-- **Auth & cloud data** — Register / login (JWT); progress, exercises, points, badges, check-ins, mistakes, and stats via REST API (`auth-server`).
+- **Auth & cloud data** — Register / login (JWT), plus isolated temporary demo sessions with no account required; progress, exercises, points, badges, check-ins, mistakes, and stats via REST API (`auth-server`).
 - **Learning dashboard** — Stats, completion, calendar from check-ins, badges, and points from the same API.
 - **Deployment-friendly** — Static frontend (e.g. GitHub Pages) + Node API on Render + PostgreSQL. See [docs/RENDER_DEPLOYMENT.md](docs/RENDER_DEPLOYMENT.md).
 

@@ -53,27 +53,29 @@ const optionalAuth = (req, res, next) => {
 };
 
 // 生成访问令牌
-const generateAccessToken = (user) => {
+const generateAccessToken = (user, expiresIn = process.env.JWT_EXPIRES_IN || '7d') => {
     const payload = {
         userId: user.id,
         username: user.username,
-        email: user.email
+        email: user.email,
+        isDemo: Boolean(user.is_demo || user.isDemo)
     };
 
     return jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+        expiresIn
     });
 };
 
 // 生成刷新令牌
-const generateRefreshToken = (user) => {
+const generateRefreshToken = (user, expiresIn = process.env.REFRESH_TOKEN_EXPIRES_IN || '30d') => {
     const payload = {
         userId: user.id,
-        username: user.username
+        username: user.username,
+        isDemo: Boolean(user.is_demo || user.isDemo)
     };
 
     return jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, {
-        expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d'
+        expiresIn
     });
 };
 

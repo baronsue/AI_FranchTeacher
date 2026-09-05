@@ -109,7 +109,7 @@ node scripts/init-render-db.js
 
    **Build & Deploy**:
    ```
-   Build Command: npm install
+   Build Command: npm ci
    Start Command: npm start
    ```
 
@@ -129,6 +129,7 @@ node scripts/init-render-db.js
    | `JWT_EXPIRES_IN` | `7d` |
    | `REFRESH_TOKEN_EXPIRES_IN` | `30d` |
    | `BCRYPT_ROUNDS` | `10` |
+   | `DEMO_LOGIN_ENABLED` | `true` |
    | `ALLOWED_ORIGINS` | `https://baronsue.github.io` |
 
    **⚠️ 生成 JWT 密钥**:

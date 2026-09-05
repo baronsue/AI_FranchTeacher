@@ -102,6 +102,28 @@ export class AuthView {
                             </button>
                         </div>
 
+                        ${isLogin ? `
+                            <div class="relative flex items-center" aria-hidden="true">
+                                <div class="flex-grow border-t border-gray-200"></div>
+                                <span class="mx-3 text-xs font-medium text-gray-400">或</span>
+                                <div class="flex-grow border-t border-gray-200"></div>
+                            </div>
+
+                            <button type="button" id="demoLoginBtn"
+                                    class="group w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                                <span class="flex items-center gap-3">
+                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-xl shadow-sm" aria-hidden="true">✨</span>
+                                    <span class="min-w-0">
+                                        <span class="block text-sm font-semibold text-indigo-800">免登录快速演示</span>
+                                        <span class="mt-0.5 block text-xs leading-5 text-indigo-600">无需账号，创建独立的 8 小时临时体验空间</span>
+                                    </span>
+                                    <svg class="ml-auto h-5 w-5 shrink-0 text-indigo-500 transition-transform group-hover:translate-x-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.69L10.72 5.53a.75.75 0 111.06-1.06l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06l3.72-3.72H3.75A.75.75 0 013 10z" clip-rule="evenodd" />
+                                    </svg>
+                                </span>
+                            </button>
+                        ` : ''}
+
                         <div class="text-center">
                             <button type="button" id="switchModeBtn" class="text-sm text-indigo-600 hover:text-indigo-500">
                                 ${isLogin ? '还没有账户？立即注册' : '已有账户？立即登录'}
@@ -118,15 +140,18 @@ export class AuthView {
     attachEventListeners() {
         const form = document.getElementById('authForm');
         const switchModeBtn = document.getElementById('switchModeBtn');
+        const demoLoginBtn = document.getElementById('demoLoginBtn');
 
         form.addEventListener('submit', (e) => this.handleSubmit(e));
         switchModeBtn.addEventListener('click', () => this.switchMode());
+        demoLoginBtn?.addEventListener('click', () => this.handleDemoLogin());
     }
 
     async handleSubmit(e) {
         e.preventDefault();
 
         const submitBtn = document.getElementById('submitBtn');
+        const demoLoginBtn = document.getElementById('demoLoginBtn');
         const errorMessage = document.getElementById('errorMessage');
 
         // 隐藏之前的错误消息
@@ -156,6 +181,7 @@ export class AuthView {
 
         // 禁用提交按钮
         submitBtn.disabled = true;
+        if (demoLoginBtn) demoLoginBtn.disabled = true;
         submitBtn.textContent = this.mode === 'login' ? '登录中...' : '注册中...';
 
         try {
@@ -183,7 +209,36 @@ export class AuthView {
         } finally {
             // 恢复提交按钮
             submitBtn.disabled = false;
+            if (demoLoginBtn) demoLoginBtn.disabled = false;
             submitBtn.textContent = this.mode === 'login' ? '登录' : '注册';
+        }
+    }
+
+    async handleDemoLogin() {
+        const demoLoginBtn = document.getElementById('demoLoginBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        const originalContent = demoLoginBtn.innerHTML;
+
+        errorMessage.classList.add('hidden');
+        demoLoginBtn.disabled = true;
+        submitBtn.disabled = true;
+        demoLoginBtn.textContent = '正在准备演示空间...';
+
+        try {
+            const result = await authService.demoLogin();
+            if (result.success) {
+                window.location.hash = '#/dashboard';
+                return;
+            }
+            this.showError(result.error || '演示登录失败，请稍后重试');
+        } catch (error) {
+            console.error('演示登录错误:', error);
+            this.showError(error.message || '网络错误，请稍后重试');
+        } finally {
+            demoLoginBtn.disabled = false;
+            submitBtn.disabled = false;
+            demoLoginBtn.innerHTML = originalContent;
         }
     }
 

@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const { validationResult } = require('express-validator');
-const { query } = require('../config/database');
+const { query, getClient } = require('../config/database');
 const {
     generateAccessToken,
     generateRefreshToken,
@@ -19,6 +20,17 @@ const respondValidationErrors = (req, res) => {
     }
     return false;
 };
+
+const isDemoLoginEnabled = () => process.env.DEMO_LOGIN_ENABLED === 'true';
+
+const toPublicUser = (user) => ({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    displayName: user.display_name,
+    avatar: user.avatar,
+    isDemo: Boolean(user.is_demo)
+});
 
 // 用户注册
 const register = async (req, res) => {
@@ -122,6 +134,93 @@ const register = async (req, res) => {
             success: false,
             error: '注册失败，请稍后重试'
         });
+    }
+};
+
+// 演示登录：创建隔离的短期账户，无需用户名或密码。
+const demoLogin = async (_req, res) => {
+    if (!isDemoLoginEnabled()) {
+        return res.status(404).json({
+            success: false,
+            error: '演示登录未启用'
+        });
+    }
+
+    let client;
+    let transactionStarted = false;
+
+    try {
+        const suffix = crypto.randomBytes(8).toString('hex');
+        const username = `demo_${suffix}`;
+        const email = `${username}@demo.aurelie.invalid`;
+        const randomPassword = crypto.randomBytes(32).toString('hex');
+        const saltRounds = parseInt(process.env.BCRYPT_ROUNDS, 10) || 10;
+        const passwordHash = await bcrypt.hash(randomPassword, saltRounds);
+        client = await getClient();
+
+        await client.query('BEGIN');
+        transactionStarted = true;
+
+        // 演示数据不长期保留；删除账户时关联学习数据和会话会级联清理。
+        await client.query(
+            `DELETE FROM users
+             WHERE is_demo = true
+               AND created_at < CURRENT_TIMESTAMP - INTERVAL '24 hours'`
+        );
+
+        const result = await client.query(
+            `INSERT INTO users (username, email, password_hash, display_name, avatar, is_demo, last_login)
+             VALUES ($1, $2, $3, $4, $5, true, CURRENT_TIMESTAMP)
+             RETURNING id, username, email, display_name, avatar, is_demo`,
+            [username, email, passwordHash, '演示访客', '✨']
+        );
+        const user = result.rows[0];
+
+        await client.query(
+            'INSERT INTO user_points (user_id, total_points, today_points) VALUES ($1, 0, 0)',
+            [user.id]
+        );
+        await client.query(
+            'INSERT INTO user_stats (user_id) VALUES ($1)',
+            [user.id]
+        );
+
+        const accessToken = generateAccessToken(user, '8h');
+        const refreshToken = generateRefreshToken(user, '8h');
+        const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
+
+        await client.query(
+            `INSERT INTO user_sessions (user_id, token, refresh_token, expires_at)
+             VALUES ($1, $2, $3, $4)`,
+            [user.id, accessToken, refreshToken, expiresAt]
+        );
+
+        await client.query('COMMIT');
+        transactionStarted = false;
+
+        return res.status(201).json({
+            success: true,
+            message: '演示空间已创建',
+            data: {
+                user: toPublicUser(user),
+                accessToken,
+                refreshToken,
+                expiresAt: expiresAt.toISOString()
+            }
+        });
+    } catch (error) {
+        if (transactionStarted) {
+            await client.query('ROLLBACK').catch((rollbackError) => {
+                console.error('演示登录事务回滚失败:', rollbackError);
+            });
+        }
+        console.error('演示登录错误:', error);
+        return res.status(500).json({
+            success: false,
+            error: '暂时无法创建演示空间，请稍后重试'
+        });
+    } finally {
+        client?.release();
     }
 };
 
@@ -246,7 +345,7 @@ const refreshToken = async (req, res) => {
 
         // 检查刷新令牌是否存在于数据库
         const sessionCheck = await query(
-            'SELECT user_id FROM user_sessions WHERE refresh_token = $1 AND expires_at > CURRENT_TIMESTAMP',
+            'SELECT user_id, expires_at FROM user_sessions WHERE refresh_token = $1 AND expires_at > CURRENT_TIMESTAMP',
             [refreshToken]
         );
 
@@ -259,7 +358,7 @@ const refreshToken = async (req, res) => {
 
         // 获取用户信息
         const userResult = await query(
-            'SELECT id, username, email, display_name, avatar FROM users WHERE id = $1',
+            'SELECT id, username, email, display_name, avatar, is_demo FROM users WHERE id = $1',
             [decoded.userId]
         );
 
@@ -273,7 +372,14 @@ const refreshToken = async (req, res) => {
         const user = userResult.rows[0];
 
         // 生成新的访问令牌
-        const newAccessToken = generateAccessToken(user);
+        const remainingDemoSessionSeconds = Math.max(
+            1,
+            Math.floor((new Date(sessionCheck.rows[0].expires_at).getTime() - Date.now()) / 1000)
+        );
+        const newAccessToken = generateAccessToken(
+            user,
+            user.is_demo ? remainingDemoSessionSeconds : (process.env.JWT_EXPIRES_IN || '7d')
+        );
 
         // 更新会话
         await query(
@@ -335,7 +441,7 @@ const getCurrentUser = async (req, res) => {
         const userId = req.user.userId;
 
         const result = await query(
-            `SELECT u.id, u.username, u.email, u.display_name, u.avatar, u.created_at, u.last_login,
+            `SELECT u.id, u.username, u.email, u.display_name, u.avatar, u.created_at, u.last_login, u.is_demo,
                     p.total_points, p.today_points,
                     s.total_study_time, s.words_learned, s.current_streak
              FROM users u
@@ -368,6 +474,7 @@ const getCurrentUser = async (req, res) => {
 module.exports = {
     register,
     login,
+    demoLogin,
     refreshToken,
     logout,
     getCurrentUser

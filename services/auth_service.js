@@ -1,7 +1,7 @@
 // 认证服务 - 管理用户认证和令牌
 
 // 生产环境认证 API（部署到 Render 后，把下面改成你的认证服务地址 + /api）
-const AUTH_API_PRODUCTION = 'https://ai-franchteacher.onrender.com/api';
+const AUTH_API_PRODUCTION = 'https://ai-franchteacher-auth.onrender.com/api';
 
 function resolveConfiguredAuthApiBaseUrl() {
     if (typeof window !== 'undefined' && typeof window.__AURELIE_AUTH_API__ === 'string') {
@@ -54,6 +54,7 @@ function normalizeUserPayload(user) {
 
     normalized.displayName = resolvedDisplayName || normalized.displayName || '';
     normalized.avatar = normalized.avatar || '🎓';
+    normalized.isDemo = Boolean(user.isDemo || user.is_demo);
 
     return normalized;
 }
@@ -164,6 +165,40 @@ class AuthService {
         } catch (error) {
             console.error('登录错误:', error);
             return { success: false, error: '网络错误，请检查认证服务器是否启动' };
+        }
+    }
+
+    /**
+     * 创建隔离的短期演示会话，无需账号或密码
+     */
+    async demoLogin() {
+        try {
+            const response = await fetchWithTimeout(
+                `${API_BASE_URL}/auth/demo`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: '{}'
+                },
+                AUTH_FETCH_TIMEOUT_MS
+            );
+
+            const data = await response.json().catch(() => ({}));
+
+            if (data.success) {
+                this.saveAuthData(data.data);
+                return { success: true, user: data.data.user };
+            }
+
+            return {
+                success: false,
+                error: data.error || (response.status >= 500 ? '服务器错误，请查看 Render 认证服务日志' : '演示登录失败')
+            };
+        } catch (error) {
+            console.error('演示登录错误:', error);
+            return { success: false, error: '网络错误，请稍后重试' };
         }
     }
 

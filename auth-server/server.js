@@ -13,6 +13,12 @@ const userRoutes = require('./routes/user');
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// Render terminates HTTPS in front of the service. Trust exactly that first
+// proxy hop so rate limiting uses the visitor IP instead of Render's proxy IP.
+if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+}
+
 // ============================================
 // 中间件配置
 // ============================================
@@ -65,9 +71,21 @@ const loginLimiter = rateLimit({
     message: '登录尝试次数过多，请15分钟后再试'
 });
 
+const demoLoginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        error: '演示空间创建过于频繁，请稍后再试'
+    }
+});
+
 app.use('/api/', limiter);
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/register', loginLimiter);
+app.use('/api/auth/demo', demoLoginLimiter);
 
 // ============================================
 // 路由
@@ -186,6 +204,16 @@ async function initializeDatabase() {
     }
 }
 
+async function runDatabaseMigrations() {
+    await pool.query(
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT false'
+    );
+    await pool.query(
+        'CREATE INDEX IF NOT EXISTS idx_users_demo_cleanup ON users (is_demo, created_at)'
+    );
+    console.log('✅ 数据库迁移检查完成');
+}
+
 // ============================================
 // 启动服务器
 // ============================================
@@ -193,6 +221,7 @@ async function initializeDatabase() {
 async function startServer() {
     // 初始化数据库
     await initializeDatabase();
+    await runDatabaseMigrations();
 
     // 启动 HTTP 服务器
     const server = app.listen(PORT, () => {
