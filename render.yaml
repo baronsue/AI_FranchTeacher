@@ -53,6 +53,8 @@ services:
         value: 10000
       - key: QWEN_API_KEY
         sync: false
+      - key: DASHSCOPE_API_URL
+        value: https://llm-rxirf9c0tydw1ufx.cn-beijing.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
       - key: ALLOWED_ORIGINS
         value: https://baronsue.github.io,http://localhost:5500,http://127.0.0.1:5500
       - key: NODE_ENV

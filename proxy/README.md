@@ -2,13 +2,15 @@
 
 这是一个轻量级的 Node.js 代理服务，用于在服务器端安全地转发请求至阿里云通义千问（DashScope）API。通过代理可以避免浏览器端的 CORS 限制，并且保护你的 API Key 不被暴露。
 
+当前默认模型为 `qwen3.8-flash`，代理使用 DashScope 多模态接口；日常教学对话默认关闭深度思考，以降低延迟和 Token 消耗。
+
 ### 目录结构
 
 ```
 proxy/
   ├─ package.json
   ├─ server.js
-  └─ env.example
+  └─ .env.example
 ```
 
 ### 环境要求
@@ -30,13 +32,14 @@ proxy/
    复制示例配置文件并填写实际值：
 
    ```bash
-   cp env.example .env
+   cp .env.example .env
    ```
 
    `.env` 文件内容说明：
 
    - `PORT`：代理服务监听端口，默认 `3001`
    - `QWEN_API_KEY`：你的 DashScope API Key，必须填写
+   - `DASHSCOPE_API_URL`：DashScope 推理地址，默认使用北京公共多模态接口
    - `ALLOWED_ORIGINS`：允许访问代理的前端来源，逗号分隔（默认允许 `http://localhost:5500` 和 `http://127.0.0.1:5500`）
 
 3. **启动代理服务**
@@ -76,4 +79,3 @@ proxy/
 | `API Error 401` | API Key 无效或已失效 | 在 DashScope 控制台重新生成 API Key |
 
 如需帮助，可复制终端中的错误日志或代理返回的错误信息并反馈。README.md
-

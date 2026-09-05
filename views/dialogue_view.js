@@ -559,7 +559,7 @@ function showAPIConfigModal() {
                     </div>
                     <ol class="list-decimal list-inside text-blue-900 space-y-1 text-xs">
                         <li>在项目根目录执行 <code>cd proxy</code></li>
-                        <li>复制配置文件：<code>cp env.example .env</code></li>
+                        <li>复制配置文件：<code>cp .env.example .env</code></li>
                         <li>编辑 <code>.env</code>，填入你的 <code>QWEN_API_KEY</code></li>
                         <li>安装依赖并启动代理：<code>npm install && npm start</code></li>
                         <li>确保代理运行在 <code>http://localhost:3001</code></li>

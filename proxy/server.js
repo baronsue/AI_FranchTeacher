@@ -10,7 +10,7 @@ const app = express();
 const port = parsePort(process.env.PORT);
 const dashScopeEndpoint =
     process.env.DASHSCOPE_API_URL ||
-    'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
+    'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
 const allowedOrigins = buildAllowedOrigins(process.env.ALLOWED_ORIGINS);
 const qwenApiKey = process.env.QWEN_API_KEY;
 
@@ -163,4 +163,3 @@ function respondWithProxyError(res, error) {
     };
     return res.status(status).json(errorBody);
 }
-

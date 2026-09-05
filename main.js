@@ -37,7 +37,8 @@ function resolveConfiguredQwenProxyUrl() {
 }
 
 function initializeApp() {
-    const deployedProxy = resolveConfiguredQwenProxyUrl() || 'https://qwen-proxy.onrender.com/qwen';
+    const deployedProxy =
+        resolveConfiguredQwenProxyUrl() || 'https://franch-teacher-proxy.onrender.com/qwen';
     const isLocal =
         window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1' ||

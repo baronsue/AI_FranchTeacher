@@ -9,13 +9,10 @@ const DEFAULT_PROXY_URL =
         : 'http://localhost:3001/qwen';
 
 const QWEN_MODELS = {
-    turbo: 'qwen-turbo',
-    plus: 'qwen-plus',
-    max: 'qwen-max',
-    long: 'qwen-long',
+    flash: 'qwen3.8-flash',
 };
 
-let currentModel = QWEN_MODELS.turbo;
+let currentModel = QWEN_MODELS.flash;
 let proxyUrl = DEFAULT_PROXY_URL;
 
 export function setQwenProxyUrl(url) {
@@ -65,7 +62,10 @@ function formatMessagesForQwen(conversationHistory, userInput) {
         content: userInput,
     });
 
-    return messages;
+    return messages.map((message) => ({
+        ...message,
+        content: [{ text: message.content }],
+    }));
 }
 
 export async function callQwenAPI(conversationHistory, userInput) {
@@ -87,6 +87,8 @@ export async function callQwenAPI(conversationHistory, userInput) {
                     top_k: 50,
                     repetition_penalty: 1.1,
                     enable_search: false,
+                    enable_thinking: false,
+                    preserve_thinking: false,
                     result_format: 'message',
                 },
             }),
@@ -105,7 +107,7 @@ export async function callQwenAPI(conversationHistory, userInput) {
 
         if (data.output && data.output.choices?.length) {
             const choice = data.output.choices[0];
-            const content = choice.message.content;
+            const content = extractTextContent(choice.message.content);
 
             if (data.usage) {
                 console.log('Qwen API Usage:', data.usage);
@@ -119,6 +121,15 @@ export async function callQwenAPI(conversationHistory, userInput) {
         console.error('Qwen API Error:', error);
         throw error;
     }
+}
+
+function extractTextContent(content) {
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return '';
+
+    return content
+        .map((part) => (typeof part === 'string' ? part : part?.text || ''))
+        .join('');
 }
 
 function cleanResponse(text) {
@@ -194,4 +205,3 @@ export function getQwenModelInfo() {
         proxyUrl,
     };
 }
-
