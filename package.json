@@ -4,6 +4,7 @@
   "private": true,
   "description": "Aurélie — static French-learning SPA (GitHub Pages) + auth-server + optional Qwen proxy",
   "scripts": {
+    "test": "node --test test/*.test.mjs",
     "serve": "npx --yes serve . -p 8080",
     "dev:auth": "npm --prefix auth-server run dev",
     "start:auth": "npm --prefix auth-server start",

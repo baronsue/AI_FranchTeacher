@@ -7,6 +7,7 @@ import { renderDialogueMode } from './views/dialogue_view.js';
 import { setQwenProxyUrl, testQwenAPI, getQwenModelInfo } from './services/qwen_service.js';
 import { setAIProvider, AI_PROVIDERS } from './services/ai_service.js';
 import { authService } from './services/auth_service.js';
+import { DEPLOYED_QWEN_PROXY_URL, isLocalHostname } from './services/qwen_proxy_config.mjs';
 
 const routes = {
     'dashboard': renderDashboard,
@@ -38,11 +39,8 @@ function resolveConfiguredQwenProxyUrl() {
 
 function initializeApp() {
     const deployedProxy =
-        resolveConfiguredQwenProxyUrl() || 'https://franch-teacher-proxy.onrender.com/qwen';
-    const isLocal =
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname === '';
+        resolveConfiguredQwenProxyUrl() || DEPLOYED_QWEN_PROXY_URL;
+    const isLocal = isLocalHostname(window.location.hostname);
     const isPlaceholder =
         !deployedProxy ||
         deployedProxy.includes('<your-render-app>') ||

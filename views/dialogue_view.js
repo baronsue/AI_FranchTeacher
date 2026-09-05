@@ -536,6 +536,17 @@ function showNotification(message, type = 'info') {
 
 // 显示 API 配置弹窗
 function showAPIConfigModal() {
+    const modelInfo = getQwenModelInfo();
+    let isLocalProxy = false;
+
+    try {
+        isLocalProxy = ['localhost', '127.0.0.1', '::1'].includes(
+            new URL(modelInfo.proxyUrl, window.location.href).hostname
+        );
+    } catch (_) {
+        // 无法解析时按线上代理展示，实际连通性仍由健康检查确认。
+    }
+
     const modal = document.createElement('div');
     modal.id = 'api-config-modal';
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -555,18 +566,9 @@ function showAPIConfigModal() {
                 <div class="border border-blue-200 rounded-lg p-4 bg-blue-50 space-y-2">
                     <div class="flex items-center gap-2">
                         <span class="font-semibold text-blue-700">通义千问 Qwen (推荐)</span>
-                        <span class="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">最佳效果</span>
+                        <span class="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">qwen3.8-flash</span>
                     </div>
-                    <ol class="list-decimal list-inside text-blue-900 space-y-1 text-xs">
-                        <li>在项目根目录执行 <code>cd proxy</code></li>
-                        <li>复制配置文件：<code>cp .env.example .env</code></li>
-                        <li>编辑 <code>.env</code>，填入你的 <code>QWEN_API_KEY</code></li>
-                        <li>安装依赖并启动代理：<code>npm install && npm start</code></li>
-                        <li>确保代理运行在 <code>http://localhost:3001</code></li>
-                    </ol>
-                    <a class="text-xs text-blue-600 hover:underline" href="/QWEN_SETUP_GUIDE.md" target="_blank">
-                        查看完整配置指南 →
-                    </a>
+                    <div id="qwen-proxy-description" class="text-blue-900 space-y-2 text-xs"></div>
                 </div>
 
                 <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 text-xs text-gray-600 space-y-2">
@@ -581,7 +583,7 @@ function showAPIConfigModal() {
                     <button id="test-qwen-api" class="flex-1 px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors">
                         测试代理连接
                     </button>
-                    <a href="http://localhost:3001/health" target="_blank" class="px-3 py-2 text-sm text-blue-600 hover:underline">
+                    <a id="qwen-health-link" href="#" target="_blank" rel="noopener noreferrer" class="px-3 py-2 text-sm text-blue-600 hover:underline">
                         查看代理状态
                     </a>
                 </div>
@@ -592,6 +594,26 @@ function showAPIConfigModal() {
     `;
 
     document.body.appendChild(modal);
+
+    const proxyDescription = modal.querySelector('#qwen-proxy-description');
+    const proxyAddress = document.createElement('code');
+    proxyAddress.className = 'break-all';
+    proxyAddress.textContent = modelInfo.proxyUrl;
+
+    if (isLocalProxy) {
+        const localIntro = document.createElement('p');
+        localIntro.textContent = '当前为本地开发模式，请先启动项目中的 proxy 服务。';
+        proxyDescription.append(localIntro, proxyAddress);
+    } else {
+        const cloudIntro = document.createElement('p');
+        cloudIntro.textContent = '云端代理已配置。API Key 仅保存在 Render 服务端，不会暴露给浏览器。';
+        proxyDescription.append(cloudIntro, proxyAddress);
+    }
+
+    const healthLink = modal.querySelector('#qwen-health-link');
+    healthLink.href = modelInfo.healthUrl;
+    healthLink.title = `打开 ${modelInfo.healthUrl}`;
+
     lucide.createIcons();
 
     // 关闭弹窗

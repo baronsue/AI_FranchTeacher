@@ -3,10 +3,12 @@
  * 通过本地/远程代理转发请求，避免在前端暴露 API Key。
  */
 
-const DEFAULT_PROXY_URL =
-    typeof window !== 'undefined'
-        ? `${window.location.protocol}//${window.location.hostname}:3001/qwen`
-        : 'http://localhost:3001/qwen';
+import {
+    buildQwenHealthUrl,
+    resolveDefaultQwenProxyUrl,
+} from './qwen_proxy_config.mjs';
+
+const DEFAULT_PROXY_URL = resolveDefaultQwenProxyUrl();
 
 const QWEN_MODELS = {
     flash: 'qwen3.8-flash',
@@ -151,15 +153,11 @@ function cleanResponse(text) {
 }
 
 function buildHealthUrl() {
-    try {
-        const url = new URL(proxyUrl);
-        url.pathname = '/health';
-        return url.toString();
-    } catch (error) {
-        // proxyUrl 可能是相对地址，从中提取基础URL
-        const baseUrl = proxyUrl.replace(/\/qwen$/, '');
-        return `${baseUrl}/health`;
-    }
+    return buildQwenHealthUrl(proxyUrl);
+}
+
+export function getQwenProxyHealthUrl() {
+    return buildHealthUrl();
 }
 
 export async function testQwenAPI() {
@@ -203,5 +201,6 @@ export function getQwenModelInfo() {
         available: Object.keys(QWEN_MODELS),
         provider: 'Alibaba Cloud (通义千问)',
         proxyUrl,
+        healthUrl: buildHealthUrl(),
     };
 }

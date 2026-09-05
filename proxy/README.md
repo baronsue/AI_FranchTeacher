@@ -61,7 +61,7 @@ proxy/
 
 ### 前端配置说明
 
-前端 `services/qwen_service.js` 已默认指向本地代理地址 `http://localhost:3001/qwen`。只需确保代理服务运行，即可正常调用。
+前端在本地开发环境会默认连接 `http://localhost:3001/qwen`；在 GitHub Pages 等线上环境会默认连接已部署的 Render 代理。配置弹窗中的“测试代理连接”和“查看代理状态”会读取同一份当前代理地址。
 
 ### 部署建议
 
