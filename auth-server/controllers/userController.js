@@ -678,11 +678,36 @@ const saveDialogue = async (req, res) => {
 // 获取排行榜
 const getLeaderboard = async (req, res) => {
     try {
-        const limit = parseInt(req.query.limit) || 10;
+        const requestedLimit = Number.parseInt(req.query.limit, 10);
+        const limit = Number.isInteger(requestedLimit)
+            ? Math.min(Math.max(requestedLimit, 1), 100)
+            : 10;
+        const currentUserId = req.user.userId;
 
         const result = await query(
-            `SELECT * FROM leaderboard LIMIT $1`,
-            [limit]
+            `WITH ranked_users AS (
+                SELECT
+                    u.id,
+                    u.username,
+                    u.display_name,
+                    u.avatar,
+                    COALESCE(p.total_points, 0) AS total_points,
+                    COALESCE(s.words_learned, 0) AS words_learned,
+                    COALESCE(s.current_streak, 0) AS current_streak,
+                    ROW_NUMBER() OVER (
+                        ORDER BY COALESCE(p.total_points, 0) DESC, u.created_at ASC, u.id ASC
+                    ) AS rank
+                FROM users u
+                LEFT JOIN user_points p ON u.id = p.user_id
+                LEFT JOIN user_stats s ON u.id = s.user_id
+                WHERE u.is_active = true
+                  AND (u.is_demo = false OR u.id = $1)
+            )
+            SELECT *, (id = $1) AS is_me
+            FROM ranked_users
+            ORDER BY rank
+            LIMIT $2`,
+            [currentUserId, limit]
         );
 
         res.json({

@@ -19,7 +19,6 @@ import {
     dailyCheckIn,
     getCheckInInfo,
     getMistakes,
-    getLeaderboard,
     BADGES,
     POINT_RULES
 } from '../utils/gamification_manager.js';
@@ -219,8 +218,45 @@ function attachTopBarEventListeners(topBar) {
         showBadgesModal(getUserBadges(), Object.values(BADGES));
     });
 
-    topBar.querySelector('#leaderboard-btn').addEventListener('click', () => {
-        showLeaderboardModal(getLeaderboard());
+    topBar.querySelector('#leaderboard-btn').addEventListener('click', async () => {
+        if (!authService.isAuthenticated()) {
+            showCelebration('请先登录，或使用免登录快速演示查看排行榜');
+            return;
+        }
+
+        const leaderboardButton = topBar.querySelector('#leaderboard-btn');
+        leaderboardButton.disabled = true;
+        leaderboardButton.setAttribute('aria-busy', 'true');
+
+        try {
+            const rows = await userDataService.getLeaderboard(10);
+            if (!Array.isArray(rows)) {
+                throw new Error('排行榜接口返回格式异常');
+            }
+
+            const currentUserId = String(authService.getCurrentUser()?.id ?? '');
+            const leaderboard = rows.map((user, index) => {
+                const numericPoints = Number(user.total_points ?? user.totalPoints ?? user.points ?? 0);
+                const numericRank = Number(user.rank);
+
+                return {
+                    name: user.display_name || user.displayName || user.username || '匿名学习者',
+                    avatar: user.avatar || '🎓',
+                    points: Number.isFinite(numericPoints) ? numericPoints : 0,
+                    rank: Number.isFinite(numericRank) && numericRank > 0 ? numericRank : index + 1,
+                    isMe: Boolean(user.is_me || user.isMe) ||
+                        (currentUserId !== '' && String(user.id) === currentUserId)
+                };
+            });
+
+            showLeaderboardModal(leaderboard);
+        } catch (error) {
+            console.error('加载数据库排行榜失败:', error);
+            showCelebration('排行榜加载失败，请稍后重试');
+        } finally {
+            leaderboardButton.disabled = false;
+            leaderboardButton.removeAttribute('aria-busy');
+        }
     });
 }
 

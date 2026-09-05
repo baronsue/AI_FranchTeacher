@@ -303,10 +303,10 @@ class UserDataService {
     async getLeaderboard(limit = 10) {
         try {
             const response = await authService.get(`/user/leaderboard?limit=${limit}`);
-            return response.success ? response.data : [];
+            return response.success && Array.isArray(response.data) ? response.data : null;
         } catch (error) {
             console.error('获取排行榜失败:', error);
-            return [];
+            return null;
         }
     }
 
