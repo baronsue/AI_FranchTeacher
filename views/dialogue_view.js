@@ -774,14 +774,19 @@ export function renderDialogueMode(container) {
             if (!voiceSelector) return;
             const frenchVoices = getAvailableFrenchVoices();
 
-            // 清空现有选项（保留第一个"自动选择"）
-            while (voiceSelector.options.length > 1) {
-                voiceSelector.remove(1);
-            }
-
+            // getVoices() 可能短暂返回空列表；此时不要破坏用户已选的音色。
             if (frenchVoices.length === 0) {
                 console.warn('No French voices available yet');
                 return;
+            }
+
+            // 删除当前 option 会让浏览器立即把 select.value 重置为空，
+            // 所以必须在重建列表前保存，并在重建后显式恢复。
+            const preferredVoiceValue = voiceSelector.value || selectedVoiceURI || '';
+
+            // 清空现有选项（保留第一个"自动选择"）
+            while (voiceSelector.options.length > 1) {
+                voiceSelector.remove(1);
             }
 
             frenchVoices.forEach(voice => {
@@ -793,6 +798,18 @@ export function renderDialogueMode(container) {
                 option.textContent = `${voice.name} (${voice.lang}) [${badge}] ${quality}`;
                 voiceSelector.appendChild(option);
             });
+
+            if (preferredVoiceValue) {
+                const canRestoreSelection = Array.from(voiceSelector.options)
+                    .some(option => option.value === preferredVoiceValue);
+
+                if (canRestoreSelection) {
+                    voiceSelector.value = preferredVoiceValue;
+                    selectedVoiceURI = preferredVoiceValue;
+                } else if (selectedVoiceURI === preferredVoiceValue) {
+                    selectedVoiceURI = null;
+                }
+            }
 
             console.log(`Loaded ${frenchVoices.length} French voices`);
 
