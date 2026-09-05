@@ -16,6 +16,18 @@ const qwenApiKey = process.env.QWEN_API_KEY;
 
 ensureApiKeyIsPresent(qwenApiKey);
 
+// Render's internal health checker does not send an Origin header. Keep this
+// endpoint ahead of the browser-facing CORS policy so deployments can become
+// healthy without weakening the protection on /qwen.
+app.get('/health', (_req, res) => {
+    res.json({
+        status: 'ok',
+        provider: 'qwen',
+        hasApiKey: Boolean(qwenApiKey),
+        allowedOrigins,
+    });
+});
+
 app.use(
     cors({
         origin: (origin, callback) => {
@@ -51,15 +63,6 @@ app.get('/', (_req, res) => {
     res.json({
         status: 'ok',
         message: 'Qwen proxy is running. Use /health for status or POST /qwen for requests.',
-    });
-});
-
-app.get('/health', (_req, res) => {
-    res.json({
-        status: 'ok',
-        provider: 'qwen',
-        hasApiKey: Boolean(qwenApiKey),
-        allowedOrigins,
     });
 });
 
