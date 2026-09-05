@@ -16,10 +16,19 @@ const qwenApiKey = process.env.QWEN_API_KEY;
 
 ensureApiKeyIsPresent(qwenApiKey);
 
-// Render's internal health checker does not send an Origin header. Keep this
-// endpoint ahead of the browser-facing CORS policy so deployments can become
-// healthy without weakening the protection on /qwen.
-app.get('/health', (_req, res) => {
+// Render's internal health checker does not send an Origin header, while the
+// browser needs a CORS response header. Allow both cases without opening the
+// Qwen request endpoint to untrusted origins.
+const healthCors = cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, false);
+        return callback(null, allowedOrigins.includes(origin));
+    },
+    credentials: true,
+});
+
+app.options('/health', healthCors);
+app.get('/health', healthCors, (_req, res) => {
     res.json({
         status: 'ok',
         provider: 'qwen',
@@ -81,11 +90,13 @@ app.post('/qwen', async (req, res) => {
     }
 });
 
-const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
-app.listen(port, host, () => {
-    console.log(`[Qwen Proxy] Server is running on http://${host}:${port}`);
-    console.log(`[Qwen Proxy] Allowed origins: ${allowedOrigins.join(', ')}`);
-});
+if (require.main === module) {
+    const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+    app.listen(port, host, () => {
+        console.log(`[Qwen Proxy] Server is running on http://${host}:${port}`);
+        console.log(`[Qwen Proxy] Allowed origins: ${allowedOrigins.join(', ')}`);
+    });
+}
 
 function parsePort(portValue) {
     const parsed = Number.parseInt(portValue, 10);
@@ -166,3 +177,5 @@ function respondWithProxyError(res, error) {
     };
     return res.status(status).json(errorBody);
 }
+
+module.exports = { app };
